@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:api-web.nhle.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(./gradlew assembleDebug)"
+    ]
+  }
+}
