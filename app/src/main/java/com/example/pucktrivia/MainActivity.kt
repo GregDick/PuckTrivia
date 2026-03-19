@@ -109,7 +109,7 @@ class MainActivity : ComponentActivity() {
                             id = player.getInt("id"),
                             firstName = player.getJSONObject("firstName").getString("default"),
                             lastName = player.getJSONObject("lastName").getString("default"),
-                            sweaterNumber = player.getInt("sweaterNumber"),
+                            sweaterNumber = player.optInt("sweaterNumber", -1).takeIf { it != -1 },
                             teamAbbrev = player.getString("teamAbbrev"),
                             position = player.getString("position"),
                             value = player.getDouble("value")
