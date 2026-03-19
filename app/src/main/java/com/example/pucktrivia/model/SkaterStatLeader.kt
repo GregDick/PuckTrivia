@@ -7,5 +7,5 @@ data class SkaterStatLeader(
     val sweaterNumber: Int?,
     val teamAbbrev: String,
     val position: String,
-    val value: Double
+    val value: Double,
 )
