@@ -8,9 +8,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -40,11 +42,21 @@ fun TriviaQuestionScreen(
         return
     }
 
-    val choices = remember(statsData) { pointsPlayers.shuffled().take(3) }
+    var roundNumber by remember { mutableIntStateOf(0) }
+    val usedPlayerIds = remember { mutableSetOf<Int>() }
+    var selectedPlayerId by remember { mutableStateOf<Int?>(null) }
+
+    val choices =
+        remember(roundNumber) {
+            if (pointsPlayers.size - usedPlayerIds.size < 3) {
+                usedPlayerIds.clear()
+            }
+            val available = pointsPlayers.filter { it.id !in usedPlayerIds }.shuffled().take(3)
+            usedPlayerIds.addAll(available.map { it.id })
+            available
+        }
 
     val correctPlayer = remember(choices) { choices.maxBy { it.value } }
-
-    var selectedPlayerId by remember { mutableStateOf<Int?>(null) }
     val answered = selectedPlayerId != null
     val isCorrect = selectedPlayerId == correctPlayer.id
 
@@ -92,6 +104,18 @@ fun TriviaQuestionScreen(
                     text = "${player.firstName} ${player.lastName}",
                     style = MaterialTheme.typography.bodyLarge,
                 )
+            }
+        }
+
+        if (answered) {
+            OutlinedButton(
+                onClick = {
+                    selectedPlayerId = null
+                    roundNumber++
+                },
+                modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+            ) {
+                Text(text = "Next", style = MaterialTheme.typography.bodyLarge)
             }
         }
     }
