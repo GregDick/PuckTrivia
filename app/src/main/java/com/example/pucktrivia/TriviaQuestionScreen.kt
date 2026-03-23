@@ -40,13 +40,9 @@ fun TriviaQuestionScreen(
         return
     }
 
-    val choices =
-        remember(statsData) {
-            val three = pointsPlayers.shuffled().take(3)
-            three.shuffled()
-        }
+    val choices = remember(statsData) { pointsPlayers.shuffled().take(3) }
 
-    val correctPlayer = remember(choices) { choices.maxByOrNull { it.value }!! }
+    val correctPlayer = remember(choices) { choices.maxBy { it.value } }
 
     var selectedPlayerId by remember { mutableStateOf<Int?>(null) }
     val answered = selectedPlayerId != null

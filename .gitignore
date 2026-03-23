@@ -14,3 +14,12 @@
 .cxx
 local.properties
 .claude/settings.local.json
+.idea/.name
+.idea/AndroidProjectSystem.xml
+.idea/compiler.xml
+.idea/deploymentTargetSelector.xml
+.idea/gradle.xml
+.idea/markdown.xml
+.idea/material_theme_project_new.xml
+.idea/migrations.xml
+.idea/runConfigurations.xml
