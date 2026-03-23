@@ -1,0 +1,98 @@
+package com.example.pucktrivia
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import com.example.pucktrivia.model.SkaterStatLeader
+
+private val CorrectGreen = Color(0xFF4CAF50)
+
+@Composable
+fun TriviaQuestionScreen(
+    statsData: Map<String, List<SkaterStatLeader>>,
+    modifier: Modifier = Modifier,
+) {
+    val pointsPlayers = statsData["points"]
+
+    if (pointsPlayers.isNullOrEmpty()) {
+        Column(
+            modifier = modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("Unable to load question")
+        }
+        return
+    }
+
+    val choices = remember(statsData) { pointsPlayers.shuffled().take(3) }
+
+    val correctPlayer = remember(choices) { choices.maxBy { it.value } }
+
+    var selectedPlayerId by remember { mutableStateOf<Int?>(null) }
+    val answered = selectedPlayerId != null
+    val isCorrect = selectedPlayerId == correctPlayer.id
+
+    Column(
+        modifier = modifier.fillMaxSize().padding(horizontal = 24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = "Which of these players currently has the most points?",
+            style = MaterialTheme.typography.headlineSmall,
+            modifier = Modifier.padding(bottom = 24.dp),
+        )
+
+        if (answered) {
+            Text(
+                text = if (isCorrect) "Correct!" else "Incorrect!",
+                style = MaterialTheme.typography.titleLarge,
+                color = if (isCorrect) CorrectGreen else MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(bottom = 16.dp),
+            )
+        }
+
+        choices.forEach { player ->
+            val containerColor =
+                when {
+                    !answered -> MaterialTheme.colorScheme.primary
+                    player.id == correctPlayer.id -> CorrectGreen
+                    player.id == selectedPlayerId -> MaterialTheme.colorScheme.error
+                    else -> MaterialTheme.colorScheme.primary
+                }
+
+            Button(
+                onClick = { if (!answered) selectedPlayerId = player.id },
+                enabled = !answered,
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor = containerColor,
+                        disabledContainerColor = containerColor,
+                        disabledContentColor = MaterialTheme.colorScheme.onPrimary,
+                    ),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+            ) {
+                Text(
+                    text = "${player.firstName} ${player.lastName}",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+        }
+    }
+}
