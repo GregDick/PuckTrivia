@@ -45,6 +45,7 @@ fun TriviaQuestionScreen(
     var roundNumber by remember { mutableIntStateOf(0) }
     var usedPlayerIds by remember { mutableStateOf(emptySet<Int>()) }
     var selectedPlayerId by remember { mutableStateOf<Int?>(null) }
+    var score by remember { mutableIntStateOf(0) }
 
     val choices =
         remember(roundNumber) {
@@ -65,6 +66,18 @@ fun TriviaQuestionScreen(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        Text(
+            text = "Score: $score",
+            style = MaterialTheme.typography.titleMedium,
+            color =
+                when {
+                    !answered -> MaterialTheme.colorScheme.onBackground
+                    isCorrect -> CorrectGreen
+                    else -> MaterialTheme.colorScheme.error
+                },
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+        )
+
         Text(
             text = "Which of these players currently has the most points?",
             style = MaterialTheme.typography.headlineSmall,
@@ -90,7 +103,12 @@ fun TriviaQuestionScreen(
                 }
 
             Button(
-                onClick = { if (!answered) selectedPlayerId = player.id },
+                onClick = {
+                    if (!answered) {
+                        selectedPlayerId = player.id
+                        if (player.id == correctPlayer.id) score += 100 else score = 0
+                    }
+                },
                 enabled = !answered,
                 colors =
                     ButtonDefaults.buttonColors(
