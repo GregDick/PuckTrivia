@@ -43,16 +43,16 @@ fun TriviaQuestionScreen(
     }
 
     var roundNumber by remember { mutableIntStateOf(0) }
-    val usedPlayerIds = remember { mutableSetOf<Int>() }
+    var usedPlayerIds by remember { mutableStateOf(emptySet<Int>()) }
     var selectedPlayerId by remember { mutableStateOf<Int?>(null) }
 
     val choices =
         remember(roundNumber) {
             if (pointsPlayers.size - usedPlayerIds.size < 3) {
-                usedPlayerIds.clear()
+                usedPlayerIds = emptySet()
             }
             val available = pointsPlayers.filter { it.id !in usedPlayerIds }.shuffled().take(3)
-            usedPlayerIds.addAll(available.map { it.id })
+            usedPlayerIds = usedPlayerIds + available.map { it.id }
             available
         }
 
@@ -110,8 +110,8 @@ fun TriviaQuestionScreen(
         if (answered) {
             OutlinedButton(
                 onClick = {
-                    selectedPlayerId = null
                     roundNumber++
+                    selectedPlayerId = null
                 },
                 modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
             ) {
