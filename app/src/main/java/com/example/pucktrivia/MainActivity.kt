@@ -1,10 +1,10 @@
 package com.example.pucktrivia
 
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -12,50 +12,28 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.lifecycleScope
-import com.example.pucktrivia.model.SkaterStatLeader
+import androidx.compose.ui.graphics.Color
 import com.example.pucktrivia.ui.theme.PuckTriviaTheme
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import org.json.JSONObject
+import dagger.hilt.android.AndroidEntryPoint
 
+private val CorrectGreen = Color(0xFF4CAF50)
+
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
-    private var statsData by mutableStateOf<Map<String, List<SkaterStatLeader>>>(emptyMap())
-    private var isLoading by mutableStateOf(true)
-    private var loadError by mutableStateOf(false)
-
-    private val client = OkHttpClient()
+    private val viewModel: TriviaViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        lifecycleScope.launch {
-            try {
-                val data = fetchSkaterStats()
-                statsData = data
-            } catch (e: Exception) {
-                Log.e("MainActivity", "Failed to fetch stats", e)
-                loadError = true
-            } finally {
-                isLoading = false
-            }
-        }
-
         setContent {
             PuckTriviaTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     when {
-                        isLoading -> {
+                        viewModel.isLoading -> {
                             Box(
                                 modifier = Modifier.fillMaxSize().padding(innerPadding),
                                 contentAlignment = Alignment.Center,
@@ -63,7 +41,7 @@ class MainActivity : ComponentActivity() {
                                 CircularProgressIndicator()
                             }
                         }
-                        loadError -> {
+                        viewModel.loadError -> {
                             Box(
                                 modifier = Modifier.fillMaxSize().padding(innerPadding),
                                 contentAlignment = Alignment.Center,
@@ -74,9 +52,34 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                         }
+                        viewModel.choices.isEmpty() -> {
+                            Box(
+                                modifier = Modifier.fillMaxSize().padding(innerPadding),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text("Unable to load question")
+                            }
+                        }
                         else -> {
+                            val scoreColor =
+                                when {
+                                    !viewModel.answered -> MaterialTheme.colorScheme.onBackground
+                                    viewModel.isCorrect -> CorrectGreen
+                                    else -> MaterialTheme.colorScheme.error
+                                }
+
                             TriviaQuestionScreen(
-                                statsData = statsData,
+                                score = viewModel.score,
+                                scoreColor = scoreColor,
+                                questionText =
+                                    "Which of these players currently has the most points?",
+                                choices = viewModel.choices,
+                                selectedPlayerId = viewModel.selectedPlayerId,
+                                correctPlayerId = viewModel.correctPlayer!!.id,
+                                answered = viewModel.answered,
+                                isCorrect = viewModel.isCorrect,
+                                onAnswerSelected = viewModel::selectAnswer,
+                                onNextRound = viewModel::nextRound,
                                 modifier = Modifier.padding(innerPadding),
                             )
                         }
@@ -85,37 +88,4 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-
-    private suspend fun fetchSkaterStats(): Map<String, List<SkaterStatLeader>> =
-        withContext(Dispatchers.IO) {
-            val request =
-                Request.Builder()
-                    .url("https://api-web.nhle.com/v1/skater-stats-leaders/current?limit=-1")
-                    .build()
-
-            val response = client.newCall(request).execute()
-            val json = JSONObject(response.body!!.string())
-
-            val result = mutableMapOf<String, List<SkaterStatLeader>>()
-            for (key in json.keys()) {
-                val playersArray = json.getJSONArray(key)
-                val players = mutableListOf<SkaterStatLeader>()
-                for (i in 0 until playersArray.length()) {
-                    val player = playersArray.getJSONObject(i)
-                    players.add(
-                        SkaterStatLeader(
-                            id = player.getInt("id"),
-                            firstName = player.getJSONObject("firstName").getString("default"),
-                            lastName = player.getJSONObject("lastName").getString("default"),
-                            sweaterNumber = player.optInt("sweaterNumber", -1).takeIf { it != -1 },
-                            teamAbbrev = player.getString("teamAbbrev"),
-                            position = player.getString("position"),
-                            value = player.getDouble("value"),
-                        )
-                    )
-                }
-                result[key] = players
-            }
-            result
-        }
 }
