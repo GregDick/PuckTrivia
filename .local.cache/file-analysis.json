@@ -1,0 +1,152 @@
+{
+  "metadata": {
+    "cached_at": "2026-03-26T00:00:00Z",
+    "cache_version": "1.0",
+    "total_kotlin_files": 8,
+    "analysis_scope": ["app/src/main/", "app/src/test/", "app/src/androidTest/"]
+  },
+  "directory_structure": [
+    {
+      "path": "app/src/main/java/com/example/pucktrivia/",
+      "file_count": 2,
+      "purpose": "application_source",
+      "key_files": ["MainActivity.kt", "TriviaQuestionScreen.kt"]
+    },
+    {
+      "path": "app/src/main/java/com/example/pucktrivia/model/",
+      "file_count": 1,
+      "purpose": "data_models",
+      "key_files": ["SkaterStatLeader.kt"]
+    },
+    {
+      "path": "app/src/main/java/com/example/pucktrivia/ui/theme/",
+      "file_count": 3,
+      "purpose": "compose_theming",
+      "key_files": ["Color.kt", "Theme.kt", "Type.kt"]
+    },
+    {
+      "path": "app/src/test/java/com/example/pucktrivia/",
+      "file_count": 1,
+      "purpose": "unit_tests",
+      "key_files": ["ExampleUnitTest.kt"]
+    },
+    {
+      "path": "app/src/androidTest/java/com/example/pucktrivia/",
+      "file_count": 1,
+      "purpose": "instrumented_tests",
+      "key_files": ["ExampleInstrumentedTest.kt"]
+    }
+  ],
+  "source_files": {
+    "MainActivity.kt": {
+      "path": "app/src/main/java/com/example/pucktrivia/MainActivity.kt",
+      "lines": 121,
+      "role": "activity_entry_point",
+      "extends": "ComponentActivity",
+      "responsibilities": [
+        "Application entry point",
+        "Holds mutableStateOf for statsData, isLoading, loadError",
+        "Creates OkHttpClient directly (no injection)",
+        "Performs network fetch in lifecycleScope",
+        "Renders Compose UI via setContent with PuckTriviaTheme + Scaffold",
+        "Handles loading/error/success states",
+        "Passes statsData to TriviaQuestionScreen"
+      ],
+      "state_fields": [
+        {"name": "statsData", "type": "Map<String, List<SkaterStatLeader>>", "scope": "activity"},
+        {"name": "isLoading", "type": "Boolean", "scope": "activity"},
+        {"name": "loadError", "type": "Boolean", "scope": "activity"}
+      ],
+      "dependencies": ["OkHttpClient", "SkaterStatLeader", "TriviaQuestionScreen", "PuckTriviaTheme"],
+      "network_endpoint": "https://api-web.nhle.com/v1/skater-stats-leaders/current?limit=-1",
+      "migration_notes": "All state and network logic moves to TriviaViewModel. Activity becomes thin shell."
+    },
+    "TriviaQuestionScreen.kt": {
+      "path": "app/src/main/java/com/example/pucktrivia/TriviaQuestionScreen.kt",
+      "lines": 140,
+      "role": "composable_screen",
+      "signature": "TriviaQuestionScreen(statsData: Map<String, List<SkaterStatLeader>>, modifier: Modifier)",
+      "responsibilities": [
+        "Displays trivia question about NHL points leaders",
+        "Manages game state via remember (roundNumber, usedPlayerIds, selectedPlayerId, score)",
+        "Derives choices from pointsPlayers with shuffle and dedup logic",
+        "Renders 3 answer buttons with correct/incorrect color feedback",
+        "Shows Next button after answering",
+        "Score: +100 correct, reset to 0 incorrect"
+      ],
+      "state_fields": [
+        {"name": "roundNumber", "type": "Int", "scope": "remember"},
+        {"name": "usedPlayerIds", "type": "Set<Int>", "scope": "remember"},
+        {"name": "selectedPlayerId", "type": "Int?", "scope": "remember"},
+        {"name": "score", "type": "Int", "scope": "remember"},
+        {"name": "choices", "type": "List<SkaterStatLeader>", "scope": "remember(roundNumber)", "note": "derived, shuffled"},
+        {"name": "correctPlayer", "type": "SkaterStatLeader", "scope": "remember(choices)", "note": "derived, maxBy value"}
+      ],
+      "constants": [
+        {"name": "CorrectGreen", "value": "Color(0xFF4CAF50)", "scope": "file-private"}
+      ],
+      "game_logic": {
+        "question": "Which of these players currently has the most points?",
+        "stat_key": "points",
+        "choices_count": 3,
+        "scoring": {"correct": "+100", "incorrect": "reset to 0"},
+        "pool_reset": "When available < 3, usedPlayerIds clears"
+      },
+      "migration_notes": "All remember-based state moves to ViewModel. Signature changes to accept individual state values and lambdas."
+    },
+    "SkaterStatLeader.kt": {
+      "path": "app/src/main/java/com/example/pucktrivia/model/SkaterStatLeader.kt",
+      "lines": 11,
+      "role": "data_model",
+      "type": "data class",
+      "fields": [
+        {"name": "id", "type": "Int"},
+        {"name": "firstName", "type": "String"},
+        {"name": "lastName", "type": "String"},
+        {"name": "sweaterNumber", "type": "Int?"},
+        {"name": "teamAbbrev", "type": "String"},
+        {"name": "position", "type": "String"},
+        {"name": "value", "type": "Double"}
+      ],
+      "migration_notes": "No changes needed. Used as-is by ViewModel."
+    }
+  },
+  "test_structure": {
+    "unit_test_dir": "app/src/test/java/com/example/pucktrivia/",
+    "instrumented_test_dir": "app/src/androidTest/java/com/example/pucktrivia/",
+    "existing_tests": [
+      {
+        "file": "ExampleUnitTest.kt",
+        "type": "unit",
+        "framework": "junit4",
+        "status": "placeholder",
+        "content": "Single addition_isCorrect test"
+      },
+      {
+        "file": "ExampleInstrumentedTest.kt",
+        "type": "instrumented",
+        "framework": "junit4 + AndroidJUnit4",
+        "status": "placeholder",
+        "content": "Package name assertion"
+      }
+    ],
+    "test_runner": "androidx.test.runner.AndroidJUnitRunner",
+    "new_test_location": "app/src/test/java/com/example/pucktrivia/TriviaViewModelTest.kt"
+  },
+  "files_to_create": [
+    "app/src/main/java/com/example/pucktrivia/TriviaViewModel.kt",
+    "app/src/main/java/com/example/pucktrivia/ViewModelFactory.kt",
+    "app/src/main/java/com/example/pucktrivia/di/AppComponent.kt",
+    "app/src/main/java/com/example/pucktrivia/di/AppModule.kt",
+    "app/src/main/java/com/example/pucktrivia/PuckTriviaApplication.kt",
+    "app/src/test/java/com/example/pucktrivia/TriviaViewModelTest.kt"
+  ],
+  "files_to_modify": [
+    "gradle/libs.versions.toml",
+    "build.gradle.kts",
+    "app/build.gradle.kts",
+    "app/src/main/AndroidManifest.xml",
+    "app/src/main/java/com/example/pucktrivia/MainActivity.kt",
+    "app/src/main/java/com/example/pucktrivia/TriviaQuestionScreen.kt"
+  ]
+}

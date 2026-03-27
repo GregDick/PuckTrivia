@@ -1,0 +1,162 @@
+{
+  "status": "complete",
+  "project_context": {
+    "metadata": {
+      "cached_at": "2026-03-26T00:00:00Z",
+      "cache_version": "1.0",
+      "project_root": "/Users/mercury/Code/PuckTrivia",
+      "analysis_confidence": 0.96
+    },
+    "detected_technologies": [
+      {
+        "name": "kotlin",
+        "version": "2.0.21",
+        "category": "language",
+        "confidence": 0.99,
+        "evidence": ["libs.versions.toml kotlin = 2.0.21", ".kt source files", "kotlin-compose plugin"],
+        "config_files": ["gradle/libs.versions.toml"]
+      },
+      {
+        "name": "jetpack-compose",
+        "version": "BOM 2024.09.00",
+        "category": "ui_framework",
+        "confidence": 0.99,
+        "evidence": ["compose-bom dependency", "@Composable annotations", "setContent usage", "Material3 components"],
+        "config_files": ["app/build.gradle.kts"]
+      },
+      {
+        "name": "android",
+        "version": "minSdk=30, targetSdk=36, compileSdk=36",
+        "category": "platform",
+        "confidence": 1.0,
+        "evidence": ["com.android.application plugin", "AndroidManifest.xml", "ComponentActivity"],
+        "config_files": ["app/build.gradle.kts", "app/src/main/AndroidManifest.xml"]
+      },
+      {
+        "name": "material3",
+        "version": "via compose-bom 2024.09.00",
+        "category": "design_system",
+        "confidence": 0.99,
+        "evidence": ["material3 imports", "MaterialTheme usage", "Scaffold, Button, Text components"]
+      },
+      {
+        "name": "okhttp",
+        "version": "4.12.0",
+        "category": "networking",
+        "confidence": 0.99,
+        "evidence": ["okhttp dependency in libs.versions.toml", "OkHttpClient usage in MainActivity"],
+        "config_files": ["gradle/libs.versions.toml"]
+      },
+      {
+        "name": "gradle-kotlin-dsl",
+        "version": "9.1.0",
+        "category": "build_tool",
+        "confidence": 1.0,
+        "evidence": ["build.gradle.kts files", "settings.gradle.kts", "gradle-wrapper.properties"],
+        "config_files": ["build.gradle.kts", "app/build.gradle.kts", "settings.gradle.kts"]
+      }
+    ],
+    "available_commands": [
+      {
+        "command": "./gradlew assembleDebug",
+        "purpose": "debug_build",
+        "estimated_time": "30-60s"
+      },
+      {
+        "command": "./gradlew assembleRelease",
+        "purpose": "release_build",
+        "estimated_time": "45-90s"
+      },
+      {
+        "command": "./gradlew test",
+        "purpose": "unit_testing",
+        "estimated_time": "10-20s"
+      },
+      {
+        "command": "./gradlew connectedAndroidTest",
+        "purpose": "instrumented_testing",
+        "requires": "device_or_emulator"
+      }
+    ],
+    "dependencies": {
+      "runtime": [
+        {"name": "androidx.core:core-ktx", "version": "1.17.0", "critical": true},
+        {"name": "androidx.lifecycle:lifecycle-runtime-ktx", "version": "2.10.0", "critical": true},
+        {"name": "androidx.activity:activity-compose", "version": "1.12.4", "critical": true},
+        {"name": "androidx.compose:compose-bom", "version": "2024.09.00", "critical": true, "type": "platform"},
+        {"name": "androidx.compose.ui:ui", "version": "via BOM", "critical": true},
+        {"name": "androidx.compose.ui:ui-graphics", "version": "via BOM", "critical": false},
+        {"name": "androidx.compose.ui:ui-tooling-preview", "version": "via BOM", "critical": false},
+        {"name": "androidx.compose.material3:material3", "version": "via BOM", "critical": true},
+        {"name": "com.squareup.okhttp3:okhttp", "version": "4.12.0", "critical": true},
+        {"name": "org.jetbrains.kotlinx:kotlinx-coroutines-android", "version": "1.8.1", "critical": true}
+      ],
+      "development": [
+        {"name": "junit:junit", "version": "4.13.2", "purpose": "unit_testing"},
+        {"name": "androidx.test.ext:junit", "version": "1.3.0", "purpose": "android_testing"},
+        {"name": "androidx.test.espresso:espresso-core", "version": "3.7.0", "purpose": "ui_testing"},
+        {"name": "androidx.compose.ui:ui-test-junit4", "version": "via BOM", "purpose": "compose_testing"},
+        {"name": "androidx.compose.ui:ui-tooling", "version": "via BOM", "purpose": "debug_tooling"},
+        {"name": "androidx.compose.ui:ui-test-manifest", "version": "via BOM", "purpose": "test_manifest"}
+      ],
+      "missing_for_feature": {
+        "dagger2": {
+          "needed": ["com.google.dagger:dagger", "com.google.dagger:dagger-compiler"],
+          "suggested_version": "2.51.1",
+          "requires_plugin": "kotlin-kapt",
+          "note": "kapt required, ksp not yet reliable for Dagger 2"
+        },
+        "viewmodel": {
+          "needed": ["androidx.lifecycle:lifecycle-viewmodel-compose"],
+          "note": "lifecycle-runtime-ktx 2.10.0 already present, viewmodel-compose needed for Compose integration"
+        },
+        "testing": {
+          "needed": ["org.jetbrains.kotlinx:kotlinx-coroutines-test"],
+          "suggested_version": "1.8.1",
+          "note": "Match coroutines-android version; needed for Dispatchers.setMain in ViewModel tests"
+        }
+      }
+    },
+    "plugins": {
+      "applied": [
+        {"id": "com.android.application", "version": "9.0.1", "alias": "libs.plugins.android.application"},
+        {"id": "org.jetbrains.kotlin.plugin.compose", "version": "2.0.21", "alias": "libs.plugins.kotlin.compose"}
+      ],
+      "needed_for_feature": [
+        {
+          "id": "org.jetbrains.kotlin.kapt",
+          "purpose": "Dagger 2 annotation processing",
+          "note": "Requires org.jetbrains.kotlin.android plugin as prerequisite"
+        },
+        {
+          "id": "org.jetbrains.kotlin.android",
+          "purpose": "Prerequisite for kapt plugin",
+          "version": "2.0.21",
+          "note": "Must be added to version catalog and applied in both root and app build.gradle.kts"
+        }
+      ]
+    },
+    "inferred_patterns": {
+      "architecture_style": {
+        "primary": "single_activity_compose",
+        "confidence": 0.95,
+        "evidence": ["Single MainActivity", "Compose setContent", "No navigation component", "No fragments"]
+      },
+      "state_management": {
+        "current": "compose_remember_plus_activity_mutableStateOf",
+        "issues": ["State lost on configuration change", "Network logic in Activity", "No ViewModel"],
+        "target": "viewmodel_with_dagger_injection"
+      },
+      "networking": {
+        "pattern": "direct_okhttp_in_activity",
+        "issues": ["No repository layer", "OkHttpClient created directly", "JSON parsing inline"],
+        "target": "okhttp_injected_via_dagger_into_viewmodel"
+      },
+      "code_organization": {
+        "pattern": "flat_with_model_package",
+        "confidence": 0.90,
+        "evidence": ["model/ package for data classes", "All screens at root package", "ui/theme/ for theming"]
+      }
+    }
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "metadata": {
+    "cached_at": "2026-03-26T00:00:00Z",
+    "cache_version": "1.0"
+  },
+  "current_state": {
+    "branch": "configuration",
+    "commit": "3c8de04",
+    "status": "clean",
+    "ahead_of_main": 0,
+    "behind_main": 0,
+    "tracking": null,
+    "note": "configuration branch is at same commit as main (no divergence yet)"
+  },
+  "branch_analysis": {
+    "available_branches": [
+      {"name": "main", "type": "local", "is_default": true},
+      {"name": "configuration", "type": "local", "is_current": true},
+      {"name": "score", "type": "local", "merged": true},
+      {"name": "origin/main", "type": "remote", "is_default": true},
+      {"name": "origin/score", "type": "remote", "merged": true}
+    ],
+    "recommended_base": {
+      "branch": "main",
+      "reason": "Default branch, configuration has no commits ahead of main",
+      "confidence": 0.99
+    }
+  },
+  "recent_activity": {
+    "commits": [
+      {"hash": "3c8de04", "message": "Merge pull request #4 from GregDick/score", "type": "merge"},
+      {"hash": "fc7575b", "message": "review", "type": "fix"},
+      {"hash": "d0faf52", "message": "Add session-scoped score counter to trivia screen", "type": "feature"},
+      {"hash": "e4f8df6", "message": "Merge pull request #3 from GregDick/loop", "type": "merge"},
+      {"hash": "bc3de7b", "message": "Fix Compose state observability and onClick ordering", "type": "fix"},
+      {"hash": "b5d8bfe", "message": "loop feature", "type": "feature"},
+      {"hash": "2a63fc2", "message": "Merge pull request #2 from GregDick/question", "type": "merge"},
+      {"hash": "dc7798e", "message": "code review fix", "type": "fix"},
+      {"hash": "bcadf35", "message": "build question screen and populate with data", "type": "feature"},
+      {"hash": "8902083", "message": "Merge pull request #1 from GregDick/data_fetch", "type": "merge"}
+    ],
+    "commit_style": {
+      "convention": "lowercase_imperative",
+      "examples": ["Add session-scoped score counter to trivia screen", "Fix Compose state observability and onClick ordering"],
+      "branch_naming": "feature_name (e.g., score, loop, question, configuration)"
+    }
+  },
+  "hooks": {
+    "pre_commit": null,
+    "note": "No active git hooks (only .sample files)"
+  }
+}
