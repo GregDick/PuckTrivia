@@ -2,8 +2,10 @@ package com.example.pucktrivia
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
@@ -20,7 +22,7 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class TriviaViewModelTest {
 
-    private val testDispatcher = UnconfinedTestDispatcher()
+    private val testDispatcher = StandardTestDispatcher()
     private lateinit var mockWebServer: MockWebServer
 
     @Before
@@ -55,7 +57,7 @@ class TriviaViewModelTest {
         return """{"points": [$playersJson]}"""
     }
 
-    private fun createViewModelAndLoad(): TriviaViewModel {
+    private fun enqueueDefaultResponse() {
         val json =
             createStatsJson(
                 listOf(
@@ -67,158 +69,170 @@ class TriviaViewModelTest {
                 )
             )
         mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
+    }
 
-        val interceptedClient =
-            OkHttpClient.Builder()
-                .addInterceptor { chain ->
-                    val newRequest =
-                        chain
-                            .request()
-                            .newBuilder()
-                            .url(mockWebServer.url("/v1/skater-stats-leaders/current?limit=-1"))
-                            .build()
-                    chain.proceed(newRequest)
-                }
-                .build()
+    private fun createViewModel(): TriviaViewModel {
+        val url = mockWebServer.url("/v1/skater-stats-leaders/current?limit=-1").toString()
+        return TriviaViewModel(OkHttpClient(), url, testDispatcher)
+    }
 
-        val viewModel = TriviaViewModel(interceptedClient)
-        // UnconfinedTestDispatcher starts the coroutine eagerly.
-        // The IO work completes on a real thread via MockWebServer (instant response).
-        // Wait briefly for the IO thread to finish and the continuation to be processed.
-        val deadline = System.currentTimeMillis() + 5000
-        while (viewModel.isLoading && System.currentTimeMillis() < deadline) {
-            Thread.sleep(10)
+    @Test
+    fun `initial score is 0`() =
+        runTest(testDispatcher) {
+            enqueueDefaultResponse()
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            assertEquals(0, viewModel.score)
         }
-        return viewModel
-    }
 
     @Test
-    fun `initial score is 0`() {
-        val viewModel = createViewModelAndLoad()
+    fun `selecting correct answer increments score by 100`() =
+        runTest(testDispatcher) {
+            enqueueDefaultResponse()
+            val viewModel = createViewModel()
+            advanceUntilIdle()
 
-        assertEquals(0, viewModel.score)
-    }
+            val correctId = viewModel.correctPlayer!!.id
+            viewModel.selectAnswer(correctId)
 
-    @Test
-    fun `selecting correct answer increments score by 100`() {
-        val viewModel = createViewModelAndLoad()
-
-        val correctId = viewModel.correctPlayer!!.id
-        viewModel.selectAnswer(correctId)
-
-        assertEquals(100, viewModel.score)
-    }
+            assertEquals(100, viewModel.score)
+        }
 
     @Test
-    fun `selecting wrong answer resets score to 0`() {
-        val viewModel = createViewModelAndLoad()
+    fun `selecting wrong answer resets score to 0`() =
+        runTest(testDispatcher) {
+            enqueueDefaultResponse()
+            val viewModel = createViewModel()
+            advanceUntilIdle()
 
-        // First get a correct answer to have a non-zero score
-        val correctId = viewModel.correctPlayer!!.id
-        viewModel.selectAnswer(correctId)
-        assertEquals(100, viewModel.score)
+            // First get a correct answer to have a non-zero score
+            val correctId = viewModel.correctPlayer!!.id
+            viewModel.selectAnswer(correctId)
+            assertEquals(100, viewModel.score)
 
-        // Next round
-        viewModel.nextRound()
+            // Next round
+            viewModel.nextRound()
 
-        // Select a wrong answer
-        val wrongId = viewModel.choices.first { it.id != viewModel.correctPlayer!!.id }.id
-        viewModel.selectAnswer(wrongId)
+            // Select a wrong answer
+            val wrongId = viewModel.choices.first { it.id != viewModel.correctPlayer!!.id }.id
+            viewModel.selectAnswer(wrongId)
 
-        assertEquals(0, viewModel.score)
-    }
-
-    @Test
-    fun `consecutive correct answers accumulate`() {
-        val viewModel = createViewModelAndLoad()
-
-        // Round 1: correct
-        viewModel.selectAnswer(viewModel.correctPlayer!!.id)
-        assertEquals(100, viewModel.score)
-
-        // Round 2: correct
-        viewModel.nextRound()
-        viewModel.selectAnswer(viewModel.correctPlayer!!.id)
-        assertEquals(200, viewModel.score)
-
-        // Round 3: correct
-        viewModel.nextRound()
-        viewModel.selectAnswer(viewModel.correctPlayer!!.id)
-        assertEquals(300, viewModel.score)
-    }
+            assertEquals(0, viewModel.score)
+        }
 
     @Test
-    fun `after wrong answer next correct answer brings score to 100`() {
-        val viewModel = createViewModelAndLoad()
+    fun `consecutive correct answers accumulate`() =
+        runTest(testDispatcher) {
+            enqueueDefaultResponse()
+            val viewModel = createViewModel()
+            advanceUntilIdle()
 
-        // Correct answer
-        viewModel.selectAnswer(viewModel.correctPlayer!!.id)
-        assertEquals(100, viewModel.score)
+            // Round 1: correct
+            viewModel.selectAnswer(viewModel.correctPlayer!!.id)
+            assertEquals(100, viewModel.score)
 
-        // Wrong answer
-        viewModel.nextRound()
-        val wrongId = viewModel.choices.first { it.id != viewModel.correctPlayer!!.id }.id
-        viewModel.selectAnswer(wrongId)
-        assertEquals(0, viewModel.score)
+            // Round 2: correct
+            viewModel.nextRound()
+            viewModel.selectAnswer(viewModel.correctPlayer!!.id)
+            assertEquals(200, viewModel.score)
 
-        // Correct answer again
-        viewModel.nextRound()
-        viewModel.selectAnswer(viewModel.correctPlayer!!.id)
-        assertEquals(100, viewModel.score)
-    }
-
-    @Test
-    fun `nextRound produces 3 new choices`() {
-        val viewModel = createViewModelAndLoad()
-
-        assertEquals(3, viewModel.choices.size)
-
-        viewModel.selectAnswer(viewModel.correctPlayer!!.id)
-        viewModel.nextRound()
-
-        assertEquals(3, viewModel.choices.size)
-    }
+            // Round 3: correct
+            viewModel.nextRound()
+            viewModel.selectAnswer(viewModel.correctPlayer!!.id)
+            assertEquals(300, viewModel.score)
+        }
 
     @Test
-    fun `choices remain stable across multiple reads`() {
-        val viewModel = createViewModelAndLoad()
+    fun `after wrong answer next correct answer brings score to 100`() =
+        runTest(testDispatcher) {
+            enqueueDefaultResponse()
+            val viewModel = createViewModel()
+            advanceUntilIdle()
 
-        val firstRead = viewModel.choices
-        val secondRead = viewModel.choices
-        val thirdRead = viewModel.choices
+            // Correct answer
+            viewModel.selectAnswer(viewModel.correctPlayer!!.id)
+            assertEquals(100, viewModel.score)
 
-        assertEquals(firstRead, secondRead)
-        assertEquals(secondRead, thirdRead)
-    }
+            // Wrong answer
+            viewModel.nextRound()
+            val wrongId = viewModel.choices.first { it.id != viewModel.correctPlayer!!.id }.id
+            viewModel.selectAnswer(wrongId)
+            assertEquals(0, viewModel.score)
 
-    @Test
-    fun `answered is false initially and true after selection`() {
-        val viewModel = createViewModelAndLoad()
-
-        assertFalse(viewModel.answered)
-        viewModel.selectAnswer(viewModel.choices.first().id)
-        assertTrue(viewModel.answered)
-    }
-
-    @Test
-    fun `nextRound clears selection`() {
-        val viewModel = createViewModelAndLoad()
-
-        viewModel.selectAnswer(viewModel.choices.first().id)
-        assertTrue(viewModel.answered)
-
-        viewModel.nextRound()
-        assertFalse(viewModel.answered)
-        assertNull(viewModel.selectedPlayerId)
-    }
+            // Correct answer again
+            viewModel.nextRound()
+            viewModel.selectAnswer(viewModel.correctPlayer!!.id)
+            assertEquals(100, viewModel.score)
+        }
 
     @Test
-    fun `correctPlayer is the player with highest value among choices`() {
-        val viewModel = createViewModelAndLoad()
+    fun `nextRound produces 3 new choices`() =
+        runTest(testDispatcher) {
+            enqueueDefaultResponse()
+            val viewModel = createViewModel()
+            advanceUntilIdle()
 
-        val correct = viewModel.correctPlayer
-        assertNotNull(correct)
-        val maxValue = viewModel.choices.maxOf { it.value }
-        assertEquals(maxValue, correct!!.value, 0.001)
-    }
+            assertEquals(3, viewModel.choices.size)
+
+            viewModel.selectAnswer(viewModel.correctPlayer!!.id)
+            viewModel.nextRound()
+
+            assertEquals(3, viewModel.choices.size)
+        }
+
+    @Test
+    fun `choices remain stable across multiple reads`() =
+        runTest(testDispatcher) {
+            enqueueDefaultResponse()
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            val firstRead = viewModel.choices
+            val secondRead = viewModel.choices
+            val thirdRead = viewModel.choices
+
+            assertEquals(firstRead, secondRead)
+            assertEquals(secondRead, thirdRead)
+        }
+
+    @Test
+    fun `answered is false initially and true after selection`() =
+        runTest(testDispatcher) {
+            enqueueDefaultResponse()
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            assertFalse(viewModel.answered)
+            viewModel.selectAnswer(viewModel.choices.first().id)
+            assertTrue(viewModel.answered)
+        }
+
+    @Test
+    fun `nextRound clears selection`() =
+        runTest(testDispatcher) {
+            enqueueDefaultResponse()
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            viewModel.selectAnswer(viewModel.choices.first().id)
+            assertTrue(viewModel.answered)
+
+            viewModel.nextRound()
+            assertFalse(viewModel.answered)
+            assertNull(viewModel.selectedPlayerId)
+        }
+
+    @Test
+    fun `correctPlayer is the player with highest value among choices`() =
+        runTest(testDispatcher) {
+            enqueueDefaultResponse()
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            val correct = viewModel.correctPlayer
+            assertNotNull(correct)
+            val maxValue = viewModel.choices.maxOf { it.value }
+            assertEquals(maxValue, correct!!.value, 0.001)
+        }
 }

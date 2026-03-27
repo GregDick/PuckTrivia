@@ -17,7 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.pucktrivia.model.SkaterStatLeader
 
-private val CorrectGreen = Color(0xFF4CAF50)
+internal val CorrectGreen = Color(0xFF4CAF50)
 
 @Composable
 fun TriviaQuestionScreen(
@@ -70,7 +70,7 @@ fun TriviaQuestionScreen(
                 }
 
             Button(
-                onClick = { if (!answered) onAnswerSelected(player.id) },
+                onClick = { onAnswerSelected(player.id) },
                 enabled = !answered,
                 colors =
                     ButtonDefaults.buttonColors(

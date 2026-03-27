@@ -7,10 +7,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.pucktrivia.di.IoDispatcher
+import com.example.pucktrivia.di.StatsUrl
 import com.example.pucktrivia.model.SkaterStatLeader
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -18,7 +20,13 @@ import okhttp3.Request
 import org.json.JSONObject
 
 @HiltViewModel
-class TriviaViewModel @Inject constructor(private val client: OkHttpClient) : ViewModel() {
+class TriviaViewModel
+@Inject
+constructor(
+    private val client: OkHttpClient,
+    @StatsUrl private val statsUrl: String,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+) : ViewModel() {
 
     var statsData by mutableStateOf<Map<String, List<SkaterStatLeader>>>(emptyMap())
         private set
@@ -73,7 +81,6 @@ class TriviaViewModel @Inject constructor(private val client: OkHttpClient) : Vi
     }
 
     fun selectAnswer(playerId: Int) {
-        if (answered) return
         selectedPlayerId = playerId
         if (playerId == correctPlayer?.id) {
             score += 100
@@ -101,11 +108,8 @@ class TriviaViewModel @Inject constructor(private val client: OkHttpClient) : Vi
     }
 
     private suspend fun fetchSkaterStats(): Map<String, List<SkaterStatLeader>> =
-        withContext(Dispatchers.IO) {
-            val request =
-                Request.Builder()
-                    .url("https://api-web.nhle.com/v1/skater-stats-leaders/current?limit=-1")
-                    .build()
+        withContext(ioDispatcher) {
+            val request = Request.Builder().url(statsUrl).build()
 
             val response = client.newCall(request).execute()
             val json = JSONObject(response.body!!.string())
