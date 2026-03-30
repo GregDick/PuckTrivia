@@ -2,6 +2,7 @@ package com.example.pucktrivia
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -80,10 +81,23 @@ fun TriviaQuestionScreen(
                     ),
                 modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
             ) {
-                Text(
-                    text = "${player.firstName} ${player.lastName}",
-                    style = MaterialTheme.typography.bodyLarge,
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "${player.firstName} ${player.lastName}  ${player.teamAbbrev}",
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (answered) {
+                        Text(
+                            text = "${player.value.toInt()} pts",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
             }
         }
 
