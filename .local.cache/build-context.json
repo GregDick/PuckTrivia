@@ -1,157 +1,88 @@
 {
   "metadata": {
-    "cached_at": "2026-03-26T00:00:00Z",
+    "cached_at": "2026-03-30T00:00:00Z",
     "cache_version": "1.0"
   },
   "build_system": {
     "tool": "gradle",
     "version": "9.1.0",
     "dsl": "kotlin",
-    "wrapper": true,
     "agp_version": "9.0.1",
-    "kotlin_version": "2.0.21"
-  },
-  "project_structure": {
+    "kotlin_version": "2.0.21",
     "modules": [":app"],
     "root_project_name": "Puck Trivia",
-    "single_module": true
-  },
-  "version_catalog": {
-    "file": "gradle/libs.versions.toml",
-    "versions": {
-      "agp": "9.0.1",
-      "coreKtx": "1.17.0",
-      "junit": "4.13.2",
-      "junitVersion": "1.3.0",
-      "espressoCore": "3.7.0",
-      "lifecycleRuntimeKtx": "2.10.0",
-      "activityCompose": "1.12.4",
-      "kotlin": "2.0.21",
-      "composeBom": "2024.09.00",
-      "okhttp": "4.12.0",
-      "coroutines": "1.8.1"
-    },
-    "versions_to_add": {
-      "dagger": "2.51.1",
-      "lifecycleViewmodelCompose": "2.10.0",
-      "coroutinesTest": "1.8.1"
-    },
-    "libraries_to_add": [
-      {
-        "alias": "dagger",
-        "group": "com.google.dagger",
-        "name": "dagger",
-        "version_ref": "dagger"
-      },
-      {
-        "alias": "dagger-compiler",
-        "group": "com.google.dagger",
-        "name": "dagger-compiler",
-        "version_ref": "dagger"
-      },
-      {
-        "alias": "androidx-lifecycle-viewmodel-compose",
-        "group": "androidx.lifecycle",
-        "name": "lifecycle-viewmodel-compose",
-        "version_ref": "lifecycleViewmodelCompose"
-      },
-      {
-        "alias": "kotlinx-coroutines-test",
-        "group": "org.jetbrains.kotlinx",
-        "name": "kotlinx-coroutines-test",
-        "version_ref": "coroutinesTest"
-      },
-      {
-        "alias": "okhttp-mockwebserver",
-        "group": "com.squareup.okhttp3",
-        "name": "mockwebserver",
-        "version_ref": "okhttp"
-      }
-    ],
-    "plugins_to_add": [
-      {
-        "alias": "kotlin-android",
-        "id": "org.jetbrains.kotlin.android",
-        "version_ref": "kotlin",
-        "note": "Required prerequisite for kapt plugin"
-      },
-      {
-        "alias": "kotlin-kapt",
-        "id": "org.jetbrains.kotlin.kapt",
-        "version_ref": "kotlin",
-        "note": "Required for Dagger 2 annotation processing"
-      }
-    ]
-  },
-  "app_build_gradle": {
-    "file": "app/build.gradle.kts",
-    "current_plugins": [
-      "libs.plugins.android.application",
-      "libs.plugins.kotlin.compose"
-    ],
-    "plugins_to_add": [
-      "libs.plugins.kotlin.android",
-      "libs.plugins.kotlin.kapt"
-    ],
-    "dependencies_to_add": [
-      {"config": "implementation", "ref": "libs.dagger"},
-      {"config": "kapt", "ref": "libs.dagger.compiler"},
-      {"config": "implementation", "ref": "libs.androidx.lifecycle.viewmodel.compose"},
-      {"config": "testImplementation", "ref": "libs.kotlinx.coroutines.test"},
-      {"config": "testImplementation", "ref": "libs.okhttp.mockwebserver"}
-    ],
-    "compile_options": {
-      "source_compatibility": "JavaVersion.VERSION_11",
-      "target_compatibility": "JavaVersion.VERSION_11"
-    }
-  },
-  "root_build_gradle": {
-    "file": "build.gradle.kts",
-    "current_plugins": [
-      {"alias": "libs.plugins.android.application", "apply": false},
-      {"alias": "libs.plugins.kotlin.compose", "apply": false}
-    ],
-    "plugins_to_add": [
-      {"alias": "libs.plugins.kotlin.android", "apply": false},
-      {"alias": "libs.plugins.kotlin.kapt", "apply": false}
-    ]
-  },
-  "android_manifest": {
-    "file": "app/src/main/AndroidManifest.xml",
-    "current_application_name": null,
-    "change_needed": "Add android:name=\".PuckTriviaApplication\"",
-    "permissions": ["android.permission.INTERNET"],
-    "activities": [
-      {
-        "name": ".MainActivity",
-        "exported": true,
-        "launcher": true
-      }
-    ]
+    "version_catalog": "gradle/libs.versions.toml"
   },
   "discovered_commands": [
     {
       "command": "./gradlew assembleDebug",
-      "purpose": "debug_build"
+      "purpose": "debug_build",
+      "artifacts": ["app/build/outputs/apk/debug/"]
     },
     {
       "command": "./gradlew assembleRelease",
-      "purpose": "release_build"
+      "purpose": "release_build",
+      "artifacts": ["app/build/outputs/apk/release/"],
+      "notes": "minifyEnabled=false, no signing config"
     },
     {
       "command": "./gradlew test",
       "purpose": "unit_testing",
-      "note": "Runs JVM unit tests, no emulator needed"
+      "notes": "unitTests.isReturnDefaultValues=true; uses MockWebServer + coroutines-test"
     },
     {
       "command": "./gradlew connectedAndroidTest",
       "purpose": "instrumented_testing",
-      "note": "Requires device or emulator"
+      "notes": "Requires device/emulator"
     },
     {
       "command": "./gradlew test --tests \"com.example.pucktrivia.TriviaViewModelTest\"",
-      "purpose": "single_test_class",
-      "note": "Run only the ViewModel tests"
+      "purpose": "run_viewmodel_tests"
     }
-  ]
+  ],
+  "build_config": {
+    "compile_sdk": "release(36)",
+    "min_sdk": 30,
+    "target_sdk": 36,
+    "java_compatibility": "VERSION_11",
+    "compose_enabled": true,
+    "application_id": "com.example.pucktrivia",
+    "version_code": 1,
+    "version_name": "1.0",
+    "test_options": {
+      "returnDefaultValues": true
+    },
+    "plugins": [
+      "com.android.application (9.0.1)",
+      "org.jetbrains.kotlin.plugin.compose (2.0.21)",
+      "com.google.dagger.hilt.android (2.59.2)",
+      "com.google.devtools.ksp (2.0.21-1.0.26)"
+    ]
+  },
+  "version_catalog_summary": {
+    "versions": {
+      "agp": "9.0.1",
+      "kotlin": "2.0.21",
+      "composeBom": "2024.09.00",
+      "okhttp": "4.12.0",
+      "coroutines": "1.8.1",
+      "hilt": "2.59.2",
+      "ksp": "2.0.21-1.0.26",
+      "lifecycleRuntimeKtx": "2.10.0",
+      "activityCompose": "1.12.4"
+    }
+  },
+  "android_manifest": {
+    "file": "app/src/main/AndroidManifest.xml",
+    "permissions": ["android.permission.INTERNET"],
+    "application_class": ".PuckTriviaApplication",
+    "activities": [
+      {
+        "name": ".MainActivity",
+        "exported": true,
+        "launcher": true,
+        "theme": "@style/Theme.PuckTrivia"
+      }
+    ]
+  }
 }

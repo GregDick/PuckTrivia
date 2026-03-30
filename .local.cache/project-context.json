@@ -2,58 +2,73 @@
   "status": "complete",
   "project_context": {
     "metadata": {
-      "cached_at": "2026-03-26T00:00:00Z",
+      "cached_at": "2026-03-30T00:00:00Z",
       "cache_version": "1.0",
       "project_root": "/Users/mercury/Code/PuckTrivia",
-      "analysis_confidence": 0.96
+      "analysis_confidence": 0.95
     },
     "detected_technologies": [
       {
         "name": "kotlin",
         "version": "2.0.21",
         "category": "language",
-        "confidence": 0.99,
-        "evidence": ["libs.versions.toml kotlin = 2.0.21", ".kt source files", "kotlin-compose plugin"],
-        "config_files": ["gradle/libs.versions.toml"]
+        "confidence": 0.98,
+        "evidence": ["build.gradle.kts kotlin plugin", ".kt source files", "KSP annotation processing"],
+        "config_files": ["build.gradle.kts", "gradle/libs.versions.toml"]
       },
       {
         "name": "jetpack-compose",
         "version": "BOM 2024.09.00",
         "category": "ui_framework",
-        "confidence": 0.99,
-        "evidence": ["compose-bom dependency", "@Composable annotations", "setContent usage", "Material3 components"],
+        "confidence": 0.98,
+        "evidence": ["compose BOM dependency", "@Composable annotations", "Material3 usage", "kotlin.compose plugin"],
         "config_files": ["app/build.gradle.kts"]
       },
       {
         "name": "android",
-        "version": "minSdk=30, targetSdk=36, compileSdk=36",
+        "version": "SDK 36 (min 30)",
         "category": "platform",
         "confidence": 1.0,
-        "evidence": ["com.android.application plugin", "AndroidManifest.xml", "ComponentActivity"],
+        "evidence": ["android application plugin", "AndroidManifest.xml", "minSdk=30 targetSdk=36"],
         "config_files": ["app/build.gradle.kts", "app/src/main/AndroidManifest.xml"]
       },
       {
+        "name": "hilt",
+        "version": "2.59.2",
+        "category": "dependency_injection",
+        "confidence": 0.98,
+        "evidence": ["@HiltAndroidApp on PuckTriviaApplication", "@HiltViewModel on TriviaViewModel", "@AndroidEntryPoint on MainActivity", "NetworkModule @InstallIn(SingletonComponent)"],
+        "config_files": ["app/build.gradle.kts", "gradle/libs.versions.toml"]
+      },
+      {
+        "name": "ksp",
+        "version": "2.0.21-1.0.26",
+        "category": "annotation_processing",
+        "confidence": 0.95,
+        "evidence": ["ksp plugin applied", "ksp(libs.hilt.compiler) in dependencies"],
+        "config_files": ["app/build.gradle.kts"]
+      },
+      {
         "name": "material3",
-        "version": "via compose-bom 2024.09.00",
+        "version": "via compose BOM",
         "category": "design_system",
-        "confidence": 0.99,
-        "evidence": ["material3 imports", "MaterialTheme usage", "Scaffold, Button, Text components"]
+        "confidence": 0.95,
+        "evidence": ["MaterialTheme usage", "material3 imports", "Color/Theme/Type definitions"]
       },
       {
         "name": "okhttp",
         "version": "4.12.0",
         "category": "networking",
-        "confidence": 0.99,
-        "evidence": ["okhttp dependency in libs.versions.toml", "OkHttpClient usage in MainActivity"],
-        "config_files": ["gradle/libs.versions.toml"]
+        "confidence": 0.98,
+        "evidence": ["OkHttpClient injected via Hilt", "Request.Builder in ViewModel", "mockwebserver in tests"]
       },
       {
-        "name": "gradle-kotlin-dsl",
+        "name": "gradle-kts",
         "version": "9.1.0",
         "category": "build_tool",
         "confidence": 1.0,
-        "evidence": ["build.gradle.kts files", "settings.gradle.kts", "gradle-wrapper.properties"],
-        "config_files": ["build.gradle.kts", "app/build.gradle.kts", "settings.gradle.kts"]
+        "evidence": ["build.gradle.kts files", "settings.gradle.kts", "version catalog at gradle/libs.versions.toml"],
+        "config_files": ["build.gradle.kts", "app/build.gradle.kts", "settings.gradle.kts", "gradle/libs.versions.toml"]
       }
     ],
     "available_commands": [
@@ -65,97 +80,92 @@
       {
         "command": "./gradlew assembleRelease",
         "purpose": "release_build",
-        "estimated_time": "45-90s"
+        "estimated_time": "30-60s"
       },
       {
         "command": "./gradlew test",
         "purpose": "unit_testing",
-        "estimated_time": "10-20s"
+        "estimated_time": "15-30s",
+        "notes": "unitTests.isReturnDefaultValues = true in build config"
       },
       {
         "command": "./gradlew connectedAndroidTest",
         "purpose": "instrumented_testing",
-        "requires": "device_or_emulator"
+        "estimated_time": "60-120s",
+        "notes": "Requires device/emulator"
+      },
+      {
+        "command": "./gradlew test --tests \"com.example.pucktrivia.TriviaViewModelTest\"",
+        "purpose": "run_viewmodel_tests",
+        "estimated_time": "10-20s"
+      }
+    ],
+    "file_patterns": [
+      {
+        "pattern": "app/src/main/java/**/*.kt",
+        "count": 9,
+        "purpose": "application_source",
+        "examples": ["MainActivity.kt", "TriviaQuestionScreen.kt", "TriviaViewModel.kt", "PuckTriviaApplication.kt"]
+      },
+      {
+        "pattern": "app/src/test/java/**/*.kt",
+        "count": 2,
+        "purpose": "unit_tests",
+        "examples": ["TriviaViewModelTest.kt", "ExampleUnitTest.kt"]
+      },
+      {
+        "pattern": "app/src/androidTest/java/**/*.kt",
+        "count": 1,
+        "purpose": "instrumented_tests",
+        "examples": ["ExampleInstrumentedTest.kt"]
       }
     ],
     "dependencies": {
       "runtime": [
-        {"name": "androidx.core:core-ktx", "version": "1.17.0", "critical": true},
-        {"name": "androidx.lifecycle:lifecycle-runtime-ktx", "version": "2.10.0", "critical": true},
-        {"name": "androidx.activity:activity-compose", "version": "1.12.4", "critical": true},
-        {"name": "androidx.compose:compose-bom", "version": "2024.09.00", "critical": true, "type": "platform"},
-        {"name": "androidx.compose.ui:ui", "version": "via BOM", "critical": true},
-        {"name": "androidx.compose.ui:ui-graphics", "version": "via BOM", "critical": false},
-        {"name": "androidx.compose.ui:ui-tooling-preview", "version": "via BOM", "critical": false},
-        {"name": "androidx.compose.material3:material3", "version": "via BOM", "critical": true},
-        {"name": "com.squareup.okhttp3:okhttp", "version": "4.12.0", "critical": true},
-        {"name": "org.jetbrains.kotlinx:kotlinx-coroutines-android", "version": "1.8.1", "critical": true}
+        {"name": "androidx-core-ktx", "version": "1.17.0", "critical": true},
+        {"name": "androidx-lifecycle-runtime-ktx", "version": "2.10.0", "critical": true},
+        {"name": "androidx-activity-compose", "version": "1.12.4", "critical": true},
+        {"name": "androidx-compose-bom", "version": "2024.09.00", "critical": true},
+        {"name": "androidx-compose-material3", "version": "via BOM", "critical": true},
+        {"name": "okhttp", "version": "4.12.0", "critical": true},
+        {"name": "kotlinx-coroutines-android", "version": "1.8.1", "critical": true},
+        {"name": "hilt-android", "version": "2.59.2", "critical": true},
+        {"name": "androidx-lifecycle-viewmodel-compose", "version": "2.10.0", "critical": true}
       ],
       "development": [
-        {"name": "junit:junit", "version": "4.13.2", "purpose": "unit_testing"},
-        {"name": "androidx.test.ext:junit", "version": "1.3.0", "purpose": "android_testing"},
-        {"name": "androidx.test.espresso:espresso-core", "version": "3.7.0", "purpose": "ui_testing"},
-        {"name": "androidx.compose.ui:ui-test-junit4", "version": "via BOM", "purpose": "compose_testing"},
-        {"name": "androidx.compose.ui:ui-tooling", "version": "via BOM", "purpose": "debug_tooling"},
-        {"name": "androidx.compose.ui:ui-test-manifest", "version": "via BOM", "purpose": "test_manifest"}
-      ],
-      "missing_for_feature": {
-        "dagger2": {
-          "needed": ["com.google.dagger:dagger", "com.google.dagger:dagger-compiler"],
-          "suggested_version": "2.51.1",
-          "requires_plugin": "kotlin-kapt",
-          "note": "kapt required, ksp not yet reliable for Dagger 2"
-        },
-        "viewmodel": {
-          "needed": ["androidx.lifecycle:lifecycle-viewmodel-compose"],
-          "note": "lifecycle-runtime-ktx 2.10.0 already present, viewmodel-compose needed for Compose integration"
-        },
-        "testing": {
-          "needed": ["org.jetbrains.kotlinx:kotlinx-coroutines-test"],
-          "suggested_version": "1.8.1",
-          "note": "Match coroutines-android version; needed for Dispatchers.setMain in ViewModel tests"
-        }
-      }
-    },
-    "plugins": {
-      "applied": [
-        {"id": "com.android.application", "version": "9.0.1", "alias": "libs.plugins.android.application"},
-        {"id": "org.jetbrains.kotlin.plugin.compose", "version": "2.0.21", "alias": "libs.plugins.kotlin.compose"}
-      ],
-      "needed_for_feature": [
-        {
-          "id": "org.jetbrains.kotlin.kapt",
-          "purpose": "Dagger 2 annotation processing",
-          "note": "Requires org.jetbrains.kotlin.android plugin as prerequisite"
-        },
-        {
-          "id": "org.jetbrains.kotlin.android",
-          "purpose": "Prerequisite for kapt plugin",
-          "version": "2.0.21",
-          "note": "Must be added to version catalog and applied in both root and app build.gradle.kts"
-        }
+        {"name": "junit", "version": "4.13.2", "purpose": "unit_testing"},
+        {"name": "kotlinx-coroutines-test", "version": "1.8.1", "purpose": "coroutine_testing"},
+        {"name": "hilt-android-testing", "version": "2.59.2", "purpose": "di_testing"},
+        {"name": "okhttp-mockwebserver", "version": "4.12.0", "purpose": "mock_http"},
+        {"name": "org.json", "version": "20231013", "purpose": "json_parsing_in_tests"},
+        {"name": "hilt-compiler", "version": "2.59.2", "purpose": "ksp_annotation_processing"}
       ]
     },
     "inferred_patterns": {
       "architecture_style": {
-        "primary": "single_activity_compose",
+        "primary": "single_activity_mvvm_with_hilt",
         "confidence": 0.95,
-        "evidence": ["Single MainActivity", "Compose setContent", "No navigation component", "No fragments"]
-      },
-      "state_management": {
-        "current": "compose_remember_plus_activity_mutableStateOf",
-        "issues": ["State lost on configuration change", "Network logic in Activity", "No ViewModel"],
-        "target": "viewmodel_with_dagger_injection"
-      },
-      "networking": {
-        "pattern": "direct_okhttp_in_activity",
-        "issues": ["No repository layer", "OkHttpClient created directly", "JSON parsing inline"],
-        "target": "okhttp_injected_via_dagger_into_viewmodel"
+        "evidence": ["Single MainActivity with @AndroidEntryPoint", "HiltViewModel with Compose mutableStateOf", "Stateless composable screen with parameter injection", "ViewModel holds all state, screen is pure render"]
       },
       "code_organization": {
-        "pattern": "flat_with_model_package",
+        "pattern": "single_module_package_by_layer",
+        "confidence": 0.95,
+        "evidence": ["All code in :app module", "model/ for data classes", "di/ for Hilt modules", "ui/theme/ for theming", "Screens and ViewModel at root package"]
+      },
+      "networking_approach": {
+        "method": "okhttp_direct_json_parsing_in_viewmodel",
+        "confidence": 0.98,
+        "evidence": ["OkHttpClient injected via Hilt singleton", "Manual JSONObject parsing in ViewModel", "No Retrofit/Moshi/Gson", "Coroutine withContext(ioDispatcher)"]
+      },
+      "state_management": {
+        "method": "compose_mutable_state_in_hilt_viewmodel",
+        "confidence": 0.98,
+        "evidence": ["mutableStateOf and mutableIntStateOf in ViewModel", "Compose observes ViewModel properties directly", "No StateFlow/LiveData", "Survives configuration changes via ViewModel"]
+      },
+      "styling_approach": {
+        "method": "material3_dynamic_color",
         "confidence": 0.90,
-        "evidence": ["model/ package for data classes", "All screens at root package", "ui/theme/ for theming"]
+        "evidence": ["Dynamic color enabled (Android 12+)", "Default Material3 purple/pink palette", "Custom CorrectGreen color for answer feedback"]
       }
     }
   }
