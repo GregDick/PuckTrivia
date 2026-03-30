@@ -89,6 +89,7 @@ fun TriviaQuestionScreen(
                     Text(
                         text = "${player.firstName} ${player.lastName}  ${player.teamAbbrev}",
                         style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f),
                     )
                     if (answered) {
                         Text(
