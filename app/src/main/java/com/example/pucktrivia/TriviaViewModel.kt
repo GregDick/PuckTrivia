@@ -101,7 +101,12 @@ constructor(
         if (pointsPlayers.size - currentUsed.size < 3) {
             currentUsed = emptySet()
         }
-        val available = pointsPlayers.filter { it.id !in currentUsed }.shuffled().take(3)
+        val available =
+            pointsPlayers
+                .filter { it.id !in currentUsed }
+                .shuffled()
+                .distinctBy { it.value }
+                .take(3)
         usedPlayerIds = currentUsed + available.map { it.id }
         choices = available
         correctPlayer = available.maxBy { it.value }
