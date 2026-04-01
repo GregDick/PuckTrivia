@@ -113,7 +113,7 @@ The app randomly presents either a "most points" or "most goals" question each r
 
 - [ ] A single set of used player IDs is maintained across both points and goals questions
 - [ ] A player who appeared as a choice in a points question does not appear as a choice in any subsequent goals question (and vice versa) until the pool resets
-- [ ] The used-player pool resets when neither question type has enough unused players with distinct stat values to form a valid 3-choice set
+- [ ] The used-player pool resets when either question type does not have enough unused players with distinct stat values to form a valid 3-choice set
 - [ ] After a pool reset, previously seen players may appear again in either question type
 
 ### Design Notes
@@ -123,11 +123,8 @@ The app randomly presents either a "most points" or "most goals" question each r
 ### Engineering Notes
 
 - The existing `usedPlayerIds` set in the ViewModel already tracks used players. This same set must be checked when drawing from either the points or goals player list.
-- The pool-reset condition currently checks `pointsPlayers.size - currentUsed.size < 3`. This needs to become smarter: the reset should trigger when the currently selected question type's pool cannot produce 3 distinct-value unused players. Alternatively, reset when both pools are exhausted.
-- Consider the reset strategy carefully. Two approaches:
-  1. **Per-type check:** If the selected question type cannot produce 3 valid choices, try the other type. If neither can, reset the pool and retry.
-  2. **Global check:** Reset the entire pool when either type falls below threshold. This is simpler but resets more aggressively.
-- Approach 1 is recommended because it maximizes the number of unique rounds before a reset.
+- The pool-reset condition currently checks `pointsPlayers.size - currentUsed.size < 3`. This needs to check both question types: if either type does not have enough unused players with distinct stat values to form a valid 3-choice set, reset the entire used-player pool.
+- This is a global reset strategy — when any single type is exhausted, all used IDs are cleared, not just the exhausted type's. This is simpler and ensures both types always have a full pool available after a reset.
 - Since players can appear in both stat leaderboards, marking a player as used after a points question correctly prevents them from appearing in a goals question. This is the desired behavior.
 
 ### QA / Testing Notes
