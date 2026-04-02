@@ -25,6 +25,7 @@ fun TriviaQuestionScreen(
     score: Int,
     scoreColor: Color,
     questionText: String,
+    statUnitLabel: String,
     choices: List<SkaterStatLeader>,
     selectedPlayerId: Int?,
     correctPlayerId: Int,
@@ -93,7 +94,7 @@ fun TriviaQuestionScreen(
                     )
                     if (answered) {
                         Text(
-                            text = "${player.value.toInt()} pts",
+                            text = "${player.value.toInt()} $statUnitLabel",
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }

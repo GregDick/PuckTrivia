@@ -26,6 +26,7 @@ constructor(
     private val client: OkHttpClient,
     @StatsUrl private val statsUrl: String,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+    private val random: kotlin.random.Random = kotlin.random.Random,
 ) : ViewModel() {
 
     var statsData by mutableStateOf<Map<String, List<SkaterStatLeader>>>(emptyMap())
@@ -53,6 +54,12 @@ constructor(
         private set
 
     var correctPlayer by mutableStateOf<SkaterStatLeader?>(null)
+        private set
+
+    var questionText by mutableStateOf("")
+        private set
+
+    var statUnitLabel by mutableStateOf("pts")
         private set
 
     val answered: Boolean
@@ -97,12 +104,30 @@ constructor(
 
     private fun prepareRound() {
         val pointsPlayers = statsData["points"] ?: return
+        val goalsPlayers = statsData["goals"]
+
+        // Check if either pool needs a reset (use raw counts, not post-dedup)
         var currentUsed = usedPlayerIds
-        if (pointsPlayers.size - currentUsed.size < 3) {
+        val pointsUnusedCount = pointsPlayers.count { it.id !in currentUsed }
+        val goalsUnusedCount = goalsPlayers?.count { it.id !in currentUsed } ?: Int.MAX_VALUE
+        if (pointsUnusedCount < 3 || goalsUnusedCount < 3) {
             currentUsed = emptySet()
         }
+
+        // Select question type: true = goals, false = points
+        val useGoals = goalsPlayers != null && random.nextBoolean()
+        val selectedPlayers = if (useGoals) goalsPlayers!! else pointsPlayers
+
+        if (useGoals) {
+            questionText = "Which of these players currently has the most goals?"
+            statUnitLabel = "g"
+        } else {
+            questionText = "Which of these players currently has the most points?"
+            statUnitLabel = "pts"
+        }
+
         val available =
-            pointsPlayers
+            selectedPlayers
                 .filter { it.id !in currentUsed }
                 .shuffled()
                 .distinctBy { it.value }
