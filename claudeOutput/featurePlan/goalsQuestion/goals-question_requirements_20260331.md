@@ -1,16 +1,16 @@
 # Most Goals Question Type — Requirements Specification
 
-**Date:** 2026-03-31
+**Date:** 2026-03-31 (updated 2026-04-03)
 **Feature:** Add a "most goals" question type alongside the existing "most points" question type
-**Status:** Draft
+**Status:** Implemented
 
 ## Feature Overview
 
-The Puck Trivia app currently presents a single question format: "Which of these players currently has the most points?" This feature introduces a second question type that asks "Which of these players currently has the most goals?" Each round, the app randomly selects whether to present a points question or a goals question. Both question types draw from a single shared pool of used player IDs so that no player appears more than once across any question type until the pool is exhausted.
+The Puck Trivia app currently presents a single question format: "Which of these players currently has the most points?" This feature introduces a second question type that asks "Which of these players currently has the most goals?" Each round, the app randomly selects whether to present a points question or a goals question. Each question type draws from its own independent player pool built from the top 50% of that stat's leaderboard, with independent per-type used-player tracking and per-type pool resets.
 
 ### Definition of Done
 
-The app randomly presents either a "most points" or "most goals" question each round. Both question types display 3 choices with no tied stat values, show team abbreviations, reveal the correct stat value after answering, and share a single used-player tracking list that prevents repeat players across all question types.
+The app randomly presents either a "most points" or "most goals" question each round. Both question types display 3 choices with no tied stat values, show team abbreviations, reveal the correct stat value after answering, and maintain independent per-type used-player sets that prevent repeat players within each question type while allowing cross-type reuse.
 
 ---
 
@@ -79,42 +79,70 @@ The app randomly presents either a "most points" or "most goals" question each r
 
 ### Engineering Notes
 
-- Introduce a concept to represent the current question type. This could be an enum (e.g., `QuestionType.POINTS`, `QuestionType.GOALS`) or a simple string matching the `statsData` map keys.
-- The ViewModel needs to expose the current question type (or at minimum, the question text and stat unit label) so the UI can render the correct wording. Currently, the question text is hardcoded in `MainActivity.kt` — it should instead be driven by ViewModel state.
-- `prepareRound()` currently hardcodes `statsData["points"]`. It needs to randomly select between `"points"` and `"goals"` and pull choices from the corresponding list.
-- The `distinctBy { it.value }` filter in `prepareRound()` already enforces no ties. This logic should apply identically to goals selections.
-- Randomization should be injectable/testable. Consider accepting a `Random` instance or a lambda so tests can control which question type is selected.
+- The ViewModel exposes `questionText` and `statUnitLabel` as Compose state so the UI renders the correct wording. The question text was moved out of `MainActivity.kt` and is now driven by ViewModel state.
+- `prepareRound()` uses an injected `Random` instance (`random.nextBoolean()`) to select between points and goals, then draws choices from the corresponding pre-computed pool (see Story 1a below).
+- No-tie enforcement uses a greedy pick algorithm: shuffle unused players, then iterate and pick players whose stat value has not already been claimed by a previous pick in the current round. This replaces the previous `distinctBy { it.value }.take(3)` approach, allowing tied-value players to appear across different rounds.
+- The `Random` instance is injected via constructor parameter with a default of `kotlin.random.Random`, enabling deterministic testing with seeded randoms.
 
 ### QA / Testing Notes
 
-- Unit test: with a seeded/controlled random, verify that when "goals" is selected, choices come from the goals list and the correct player has the highest goals value.
-- Unit test: with a seeded/controlled random, verify that when "points" is selected, behavior is unchanged from the current implementation.
+- Unit test: with a seeded/controlled random, verify that when "goals" is selected, choices come from the goals pool and the correct player has the highest goals value.
+- Unit test: with a seeded/controlled random, verify that when "points" is selected, choices come from the points pool.
 - Unit test: when `statsData` contains only "points" (no "goals"), verify that `prepareRound()` always selects points regardless of the random outcome.
 - Manual test: play 20+ rounds and verify that both question types appear with reasonable frequency, and that the question text and stat labels match the question type.
 
 ### Edge Cases & Risk Analysis
 
-- If the goals leaderboard has fewer than 3 players with distinct values after filtering out used players, `prepareRound()` must handle this. Options: fall back to a points question for that round, or reset the used-player pool. The existing pool-reset logic (when fewer than 3 players remain) should be extended to account for both pools.
-- A player could appear in both the points and goals leaderboards. The shared used-player pool (Story 3) prevents the same player from appearing in a goals question after already appearing in a points question. However, the `distinctBy { it.value }` filter operates within one stat type, so a player's goals value being unique does not depend on their points value.
+- If a question type's pool has fewer than 3 players with distinct values after filtering out used players, `prepareRound()` resets that type's used-player set and retries. This reset is independent per type (see Story 3).
+- A player can appear in both the points and goals leaderboards. Independent per-type used-player tracking (Story 3) allows the same player to appear in both a points question and a goals question.
 
 ---
 
-## Story 3: Shared Used-Player Pool Across Question Types
+## Story 1a: Build Per-Type Player Pools from the Top 50% of Each Stat Leaderboard
 
 **As a** trivia player,
-**I want** to never see the same player as a choice in two different rounds, regardless of whether those rounds are points questions or goals questions,
-**So that** the game feels fair and does not repeat content.
+**I want** each question type to draw from a curated pool of that stat's top performers,
+**So that** questions feature meaningfully competitive players rather than drawing from the full leaderboard.
 
 **Story Points:** 3
+**Priority:** P0
+**Dependencies:** Story 1
+
+### Acceptance Criteria
+
+- [x] After data is fetched, a points player pool is constructed containing the top 50% of players from the points leaderboard, sorted by stat value descending, rounded up (e.g., 7 players yields a pool of 4)
+- [x] After data is fetched, a goals player pool is constructed containing the top 50% of players from the goals leaderboard, using the same top-50%-rounded-up rule
+- [x] Players with tied stat values are all included in their respective pool -- no deduplication by value occurs during pool construction
+- [x] The two pools are built independently; a player's inclusion in the points pool has no bearing on their inclusion in the goals pool
+- [x] If the goals leaderboard is absent from the API response, no goals pool is constructed and the app falls back to points-only questions
+- [x] Points questions draw choices exclusively from the points pool; goals questions draw exclusively from the goals pool
+
+### Engineering Notes
+
+- Pool construction happens once per data fetch in `buildPools()`, not on every `prepareRound()` call. Pools are stored as ViewModel state (`pointsPool: List<SkaterStatLeader>` and `goalsPool: List<SkaterStatLeader>?`).
+- Construction logic: sort by `value` descending, then take `ceil(size / 2.0).toInt()` entries.
+
+---
+
+## Story 3: Independent Per-Type Used-Player Tracking and Pool Reset
+
+**As a** trivia player,
+**I want** each question type to independently track which players I have already seen,
+**So that** I do not see the same player repeated in the same question category, while still allowing top players to appear in both points and goals questions.
+
+**Story Points:** 5
 **Priority:** P0
 **Dependencies:** Story 2
 
 ### Acceptance Criteria
 
-- [ ] A single set of used player IDs is maintained across both points and goals questions
-- [ ] A player who appeared as a choice in a points question does not appear as a choice in any subsequent goals question (and vice versa) until the pool resets
-- [ ] The used-player pool resets when either question type does not have enough unused players with distinct stat values to form a valid 3-choice set
-- [ ] After a pool reset, previously seen players may appear again in either question type
+- [x] Each question type (points, goals) maintains its own independent set of used player IDs (`pointsUsedIds`, `goalsUsedIds`)
+- [x] A player who appeared in a points question may still appear in a subsequent goals question (and vice versa)
+- [x] A player who appeared in a goals question does not appear in another goals question until the goals used set resets; same rule applies symmetrically for points
+- [x] After a round's 3 players are selected, all 3 of their IDs are added to that question type's used set
+- [x] A question type's used set resets only when that specific type cannot produce a valid 3-choice round (i.e., the greedy pick returns fewer than 3 players)
+- [x] After a reset, the 3 choices for that round are selected from the now-full pool
+- [x] Resetting one type's used set does not affect the other type's used set
 
 ### Design Notes
 
@@ -122,22 +150,22 @@ The app randomly presents either a "most points" or "most goals" question each r
 
 ### Engineering Notes
 
-- The existing `usedPlayerIds` set in the ViewModel already tracks used players. This same set must be checked when drawing from either the points or goals player list.
-- The pool-reset condition currently checks `pointsPlayers.size - currentUsed.size < 3`. This needs to check both question types: if either type does not have enough unused players with distinct stat values to form a valid 3-choice set, reset the entire used-player pool.
-- This is a global reset strategy — when any single type is exhausted, all used IDs are cleared, not just the exhausted type's. This is simpler and ensures both types always have a full pool available after a reset.
-- Since players can appear in both stat leaderboards, marking a player as used after a points question correctly prevents them from appearing in a goals question. This is the desired behavior.
+- The previous single `usedPlayerIds` set was replaced with two independent sets: `pointsUsedIds` and `goalsUsedIds`.
+- `prepareRound()` attempts a greedy pick from the selected type's pool. If fewer than 3 are returned, it resets only that type's used set to empty and retries.
+- The per-type reset strategy avoids the problem where exhausting one question type would prematurely reset the other type's tracking.
 
 ### QA / Testing Notes
 
-- Unit test: provide a mock response where the points list has players A, B, C, D and the goals list has players C, D, E, F. After a points round uses A, B, C, verify that a goals round cannot select C (it is in `usedPlayerIds`).
-- Unit test: exhaust all available unique players across both lists and verify the pool resets, allowing players to reappear.
-- Unit test: provide a scenario where the goals pool is exhausted but the points pool still has players. Verify that goals questions fall back to points (or the round selects a points question) rather than crashing.
+- Unit test: after a points round uses players A, B, C, verify that a goals round can still select player A if A appears in the goals pool (cross-type reuse is allowed).
+- Unit test: after a goals round uses players D, E, F, verify that the next goals round cannot select D, E, or F until the goals used set resets.
+- Unit test: exhaust one type's pool and verify that only that type's used set resets, leaving the other type's used set intact.
+- Unit test: force two consecutive goals rounds with a pool of exactly 3 entries; verify the second round triggers a goals-only reset and proceeds successfully.
 
 ### Edge Cases & Risk Analysis
 
-- **Asymmetric pool sizes:** The goals leaderboard and points leaderboard may have different numbers of players. One pool could exhaust much faster than the other, causing that question type to always fall back or force resets.
-- **Overlap between pools:** Many top scorers also lead in goals. Heavy overlap means the shared used-player pool depletes both lists faster than expected.
-- **Pool reset with a selected question type:** If a goals round triggers a pool reset, the round should still present a goals question (using the now-reset pool), not silently switch to points.
+- **Asymmetric pool sizes:** The goals and points pools may differ in size. Each type resets independently, so asymmetry does not cause cross-type interference.
+- **Overlap between pools:** Players appearing in both leaderboards are independently tracked per type. A player used in points is not excluded from goals.
+- **Pool reset with a selected question type:** If a goals round triggers a reset, the round still presents a goals question using the now-full pool.
 
 ---
 
@@ -156,7 +184,7 @@ The app randomly presents either a "most points" or "most goals" question each r
 - [ ] All existing tests in `TriviaViewModelTest` and `TriviaNoTieTest` continue to pass (updated as needed to accommodate the new `prepareRound()` signature or behavior)
 - [ ] The mock JSON responses in tests include both `"points"` and `"goals"` keys where appropriate
 - [ ] The no-tie invariant is tested for goals questions, not only points questions
-- [ ] The shared used-player pool is tested with at least one cross-type scenario (a player used in a points round is excluded from a goals round)
+- [ ] The independent per-type used-player tracking is tested with cross-type scenarios (a player used in a points round can still appear in a goals round)
 
 ### Design Notes
 
@@ -171,7 +199,7 @@ The app randomly presents either a "most points" or "most goals" question each r
 ### QA / Testing Notes
 
 - Run the full test suite after implementation. All tests green is the exit criterion.
-- Verify test coverage includes: goals-only data, points-only data, both types present, pool exhaustion for one type, pool exhaustion for both types.
+- Verify test coverage includes: goals-only data, points-only data, both types present, per-type pool exhaustion, independent reset behavior.
 
 ### Edge Cases & Risk Analysis
 
@@ -189,12 +217,12 @@ The app randomly presents either a "most points" or "most goals" question each r
 ### Data Model Impact
 
 - `SkaterStatLeader` requires no changes. The `value` field is already generic enough to hold points or goals.
-- The ViewModel gains minimal new state: the current question type (an enum or string) and potentially a `Random` instance.
+- The ViewModel gains new state: `questionText`, `statUnitLabel`, `pointsPool`, `goalsPool`, `pointsUsedIds`, `goalsUsedIds`, and a `Random` instance.
 
 ### Future Compatibility
 
-- This architecture (a `statsData` map keyed by stat type, a shared used-player pool, and random question-type selection) naturally extends to additional stat types (assists, penalty minutes, etc.) with minimal incremental effort.
-- If a third question type is added, the random selection logic, pool-reset logic, and fallback logic should be reviewed for generalization (e.g., iterating over all available stat types rather than hardcoding two).
+- This architecture (per-type pools built from the top 50%, independent used-player tracking, per-type resets, and random question-type selection) naturally extends to additional stat types (assists, penalty minutes, etc.) with minimal incremental effort.
+- If a third question type is added, the pool construction, used-set tracking, and reset logic follow the same per-type pattern. The random selection logic should be generalized (e.g., randomly choosing from all available stat types rather than a boolean coin flip).
 
 ### Assumptions
 
