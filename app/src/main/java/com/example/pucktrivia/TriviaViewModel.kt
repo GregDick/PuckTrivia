@@ -44,8 +44,17 @@ constructor(
     var roundNumber by mutableIntStateOf(0)
         private set
 
-    var usedPlayerIds by mutableStateOf(emptySet<Int>())
-        private set
+    var pointsPool by mutableStateOf<List<SkaterStatLeader>>(emptyList())
+        internal set
+
+    var goalsPool by mutableStateOf<List<SkaterStatLeader>?>(null)
+        internal set
+
+    var pointsUsedIds by mutableStateOf(emptySet<Int>())
+        internal set
+
+    var goalsUsedIds by mutableStateOf(emptySet<Int>())
+        internal set
 
     var selectedPlayerId by mutableStateOf<Int?>(null)
         private set
@@ -77,6 +86,7 @@ constructor(
             try {
                 val data = fetchSkaterStats()
                 statsData = data
+                buildPools(data)
                 prepareRound()
             } catch (e: Exception) {
                 Log.e("TriviaViewModel", "Failed to fetch stats", e)
@@ -102,21 +112,26 @@ constructor(
         prepareRound()
     }
 
-    private fun prepareRound() {
-        val pointsPlayers = statsData["points"] ?: return
-        val goalsPlayers = statsData["goals"]
-
-        // Check if either pool needs a reset (use raw counts, not post-dedup)
-        var currentUsed = usedPlayerIds
-        val pointsUnusedCount = pointsPlayers.count { it.id !in currentUsed }
-        val goalsUnusedCount = goalsPlayers?.count { it.id !in currentUsed } ?: Int.MAX_VALUE
-        if (pointsUnusedCount < 3 || goalsUnusedCount < 3) {
-            currentUsed = emptySet()
+    private fun buildPools(data: Map<String, List<SkaterStatLeader>>) {
+        val pts = data["points"]
+        if (pts != null) {
+            val sorted = pts.sortedByDescending { it.value }
+            pointsPool = sorted.take(kotlin.math.ceil(sorted.size / 2.0).toInt())
         }
+        val gls = data["goals"]
+        if (gls != null) {
+            val sorted = gls.sortedByDescending { it.value }
+            goalsPool = sorted.take(kotlin.math.ceil(sorted.size / 2.0).toInt())
+        }
+    }
 
-        // Select question type: true = goals, false = points
-        val useGoals = goalsPlayers != null && random.nextBoolean()
-        val selectedPlayers = if (useGoals) goalsPlayers!! else pointsPlayers
+    private fun prepareRound() {
+        val pPool = pointsPool
+        if (pPool.isEmpty()) return
+        val gPool = goalsPool
+
+        // Select question type
+        val useGoals = gPool != null && random.nextBoolean()
 
         if (useGoals) {
             questionText = "Which of these players currently has the most goals?"
@@ -126,15 +141,45 @@ constructor(
             statUnitLabel = "pts"
         }
 
-        val available =
-            selectedPlayers
-                .filter { it.id !in currentUsed }
-                .shuffled()
-                .distinctBy { it.value }
-                .take(3)
-        usedPlayerIds = currentUsed + available.map { it.id }
-        choices = available
-        correctPlayer = available.maxBy { it.value }
+        val pool = if (useGoals) gPool!! else pPool
+        var usedIds = if (useGoals) goalsUsedIds else pointsUsedIds
+
+        // Greedy no-tie pick of 3
+        var picked = greedyPick(pool, usedIds)
+
+        // If <3, reset this type's used set and retry
+        if (picked.size < 3) {
+            usedIds = emptySet()
+            picked = greedyPick(pool, usedIds)
+        }
+
+        // Update the appropriate used set
+        val newUsed = usedIds + picked.map { it.id }
+        if (useGoals) {
+            goalsUsedIds = newUsed
+        } else {
+            pointsUsedIds = newUsed
+        }
+
+        choices = picked
+        correctPlayer = picked.maxByOrNull { it.value }
+    }
+
+    private fun greedyPick(
+        pool: List<SkaterStatLeader>,
+        usedIds: Set<Int>,
+    ): List<SkaterStatLeader> {
+        val unused = pool.filter { it.id !in usedIds }.shuffled(random)
+        val claimedValues = mutableSetOf<Double>()
+        val result = mutableListOf<SkaterStatLeader>()
+        for (player in unused) {
+            if (player.value !in claimedValues) {
+                claimedValues.add(player.value)
+                result.add(player)
+                if (result.size == 3) break
+            }
+        }
+        return result
     }
 
     private suspend fun fetchSkaterStats(): Map<String, List<SkaterStatLeader>> =

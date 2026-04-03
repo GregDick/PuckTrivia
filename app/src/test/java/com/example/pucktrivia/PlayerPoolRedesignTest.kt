@@ -281,6 +281,7 @@ class PlayerPoolRedesignTest {
     fun `three choices always have distinct stat values`() =
         runTest(testDispatcher) {
             // Arrange - force a points question, pool has players with some tied values
+            // 8 players -> pool of 4, with a tie at 80.0 in the pool
             val seed = generateSequence(0) { it + 1 }.first { !Random(it).nextBoolean() }
             val pointsPlayers =
                 listOf(
@@ -290,6 +291,8 @@ class PlayerPoolRedesignTest {
                     Triple(4, "Dave", 60.0),
                     Triple(5, "Eve", 40.0),
                     Triple(6, "Frank", 20.0),
+                    Triple(7, "Grace", 10.0),
+                    Triple(8, "Hank", 5.0),
                 )
             val goalsPlayers =
                 listOf(
@@ -417,13 +420,16 @@ class PlayerPoolRedesignTest {
     fun `player used in points question CAN appear in goals question`() =
         runTest(testDispatcher) {
             // Arrange - shared players appear in both leaderboards.
-            // Seed: points first, then goals.
-            val seed =
-                generateSequence(0) { it + 1 }
-                    .first { s ->
-                        val r = Random(s)
-                        !r.nextBoolean() && r.nextBoolean()
-                    }
+            // Points first, then goals.
+            val boolSequence = listOf(false, true).iterator()
+            val customRandom =
+                object : Random() {
+                    private val delegate = Random(42)
+
+                    override fun nextBits(bitCount: Int): Int = delegate.nextBits(bitCount)
+
+                    override fun nextBoolean(): Boolean = boolSequence.next()
+                }
             // Players 1, 2, 3 appear in both points and goals leaderboards.
             // With 6 players per type, pool = 3. The top 3 by value in each type
             // are shared players.
@@ -447,7 +453,7 @@ class PlayerPoolRedesignTest {
                 )
             val json = createStatsJsonWithGoals(pointsPlayers, goalsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
-            val viewModel = createViewModel(Random(seed))
+            val viewModel = createViewModel(customRandom)
             advanceUntilIdle()
 
             // Capture points round choice IDs
@@ -533,13 +539,16 @@ class PlayerPoolRedesignTest {
     @Test
     fun `per-type used sets are independent pointsUsedIds and goalsUsedIds`() =
         runTest(testDispatcher) {
-            // Arrange - seed: points first, then goals
-            val seed =
-                generateSequence(0) { it + 1 }
-                    .first { s ->
-                        val r = Random(s)
-                        !r.nextBoolean() && r.nextBoolean()
-                    }
+            // Arrange - points first, then goals
+            val boolSequence = listOf(false, true).iterator()
+            val customRandom =
+                object : Random() {
+                    private val delegate = Random(42)
+
+                    override fun nextBits(bitCount: Int): Int = delegate.nextBits(bitCount)
+
+                    override fun nextBoolean(): Boolean = boolSequence.next()
+                }
             val pointsPlayers =
                 listOf(
                     Triple(1, "Alice", 100.0),
@@ -560,7 +569,7 @@ class PlayerPoolRedesignTest {
                 )
             val json = createStatsJsonWithGoals(pointsPlayers, goalsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
-            val viewModel = createViewModel(Random(seed))
+            val viewModel = createViewModel(customRandom)
             advanceUntilIdle()
 
             // After round 1 (points): pointsUsedIds should have 3 IDs, goalsUsedIds should be empty
@@ -602,13 +611,16 @@ class PlayerPoolRedesignTest {
             // Arrange - goals pool has exactly 3 players (6 total -> pool of 3).
             // After round 1 uses all 3 goals pool entries, round 2 goals should trigger
             // a goals-only reset. Points used set should NOT be affected.
-            // Seed: points first, then goals, then goals again.
-            val seed =
-                generateSequence(0) { it + 1 }
-                    .first { s ->
-                        val r = Random(s)
-                        !r.nextBoolean() && r.nextBoolean() && r.nextBoolean()
-                    }
+            // Sequence: points, goals, goals
+            val boolSequence = listOf(false, true, true).iterator()
+            val customRandom =
+                object : Random() {
+                    private val delegate = Random(42)
+
+                    override fun nextBits(bitCount: Int): Int = delegate.nextBits(bitCount)
+
+                    override fun nextBoolean(): Boolean = boolSequence.next()
+                }
             val pointsPlayers =
                 listOf(
                     Triple(1, "Alice", 100.0),
@@ -629,7 +641,7 @@ class PlayerPoolRedesignTest {
                 )
             val json = createStatsJsonWithGoals(pointsPlayers, goalsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
-            val viewModel = createViewModel(Random(seed))
+            val viewModel = createViewModel(customRandom)
             advanceUntilIdle()
 
             // Round 1 (points) - uses 3 from points pool
@@ -660,13 +672,16 @@ class PlayerPoolRedesignTest {
     fun `points pool resets independently when exhausted without resetting goals used set`() =
         runTest(testDispatcher) {
             // Arrange - points pool has 3 entries (6 total -> pool of 3).
-            // Seed: goals first, then points, then points again.
-            val seed =
-                generateSequence(0) { it + 1 }
-                    .first { s ->
-                        val r = Random(s)
-                        r.nextBoolean() && !r.nextBoolean() && !r.nextBoolean()
-                    }
+            // Sequence: goals, points, points
+            val boolSequence = listOf(true, false, false).iterator()
+            val customRandom =
+                object : Random() {
+                    private val delegate = Random(42)
+
+                    override fun nextBits(bitCount: Int): Int = delegate.nextBits(bitCount)
+
+                    override fun nextBoolean(): Boolean = boolSequence.next()
+                }
             val pointsPlayers =
                 listOf(
                     Triple(1, "Alice", 100.0),
@@ -687,7 +702,7 @@ class PlayerPoolRedesignTest {
                 )
             val json = createStatsJsonWithGoals(pointsPlayers, goalsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
-            val viewModel = createViewModel(Random(seed))
+            val viewModel = createViewModel(customRandom)
             advanceUntilIdle()
 
             // Round 1 (goals) - uses 3 from goals pool
