@@ -75,6 +75,9 @@ class TriviaNoTieTest {
                         Triple(1, "Alice", 50.0),
                         Triple(2, "Bob", 50.0),
                         Triple(3, "Carol", 50.0),
+                        Triple(4, "Dave", 40.0),
+                        Triple(5, "Eve", 30.0),
+                        Triple(6, "Frank", 20.0),
                     )
                 )
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
@@ -99,6 +102,9 @@ class TriviaNoTieTest {
                         Triple(1, "Alice", 100.0),
                         Triple(2, "Bob", 100.0),
                         Triple(3, "Carol", 50.0),
+                        Triple(4, "Dave", 40.0),
+                        Triple(5, "Eve", 30.0),
+                        Triple(6, "Frank", 20.0),
                     )
                 )
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
@@ -125,6 +131,9 @@ class TriviaNoTieTest {
                         Triple(1, "Alice", 100.0),
                         Triple(2, "Bob", 50.0),
                         Triple(3, "Carol", 50.0),
+                        Triple(4, "Dave", 40.0),
+                        Triple(5, "Eve", 30.0),
+                        Triple(6, "Frank", 20.0),
                     )
                 )
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
@@ -151,6 +160,9 @@ class TriviaNoTieTest {
                         Triple(1, "Alice", 80.0),
                         Triple(2, "Bob", 80.0),
                         Triple(3, "Carol", 60.0),
+                        Triple(4, "Dave", 40.0),
+                        Triple(5, "Eve", 30.0),
+                        Triple(6, "Frank", 20.0),
                     )
                 )
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))

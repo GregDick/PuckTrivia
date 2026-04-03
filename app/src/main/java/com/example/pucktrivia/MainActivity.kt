@@ -68,8 +68,8 @@ class MainActivity : ComponentActivity() {
                             TriviaQuestionScreen(
                                 score = viewModel.score,
                                 scoreColor = scoreColor,
-                                questionText =
-                                    "Which of these players currently has the most points?",
+                                questionText = viewModel.questionText,
+                                statUnitLabel = viewModel.statUnitLabel,
                                 choices = viewModel.choices,
                                 selectedPlayerId = viewModel.selectedPlayerId,
                                 correctPlayerId = viewModel.correctPlayer!!.id,
