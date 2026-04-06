@@ -79,9 +79,14 @@ pushd "$BUILD_WORKTREE" > /dev/null
 popd > /dev/null
 
 # ── Collect diffs ────────────────────────────────────────────────────────────
-echo "[5/5] Collecting diffs..."
+echo "[5/5] Collecting diffs and test files..."
 git -C "$TDD_WORKTREE" diff main > "$RESULTS_DIR/tdd.diff"
 git -C "$BUILD_WORKTREE" diff main > "$RESULTS_DIR/build.diff"
+
+# ── Copy test source files for easy review ──────────────────────────────────
+mkdir -p "$RESULTS_DIR/tdd_tests" "$RESULTS_DIR/build_tests"
+find "$TDD_WORKTREE/app/src/test" -name "*Test.kt" -exec cp {} "$RESULTS_DIR/tdd_tests/" \; 2>/dev/null || true
+find "$BUILD_WORKTREE/app/src/test" -name "*Test.kt" -exec cp {} "$RESULTS_DIR/build_tests/" \; 2>/dev/null || true
 
 # ── Write manual review report ───────────────────────────────────────────────
 TDD_TESTS_PASS="FAIL"
@@ -111,6 +116,8 @@ cat > "$RESULTS_DIR/REVIEW.md" << REPORT
 - \`build.diff\` — all changes made by the Build skill
 - \`tdd_test_results.txt\` — Gradle test output for TDD
 - \`build_test_results.txt\` — Gradle test output for Build
+- \`tdd_tests/\` — test source files from TDD skill
+- \`build_tests/\` — test source files from Build skill
 - \`tdd_claude_output.txt\` — full Claude session output for TDD
 - \`build_claude_output.txt\` — full Claude session output for Build
 
