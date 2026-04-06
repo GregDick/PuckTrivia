@@ -10,8 +10,9 @@ REQUIREMENT="${1:?Usage: $0 <path-to-requirement.md>}"
 REQUIREMENT="$(realpath "$REQUIREMENT")"
 REQ_NAME="$(basename "$REQUIREMENT" .md)"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
-RESULTS_DIR="$(realpath "eval/results/${REQ_NAME}_${TIMESTAMP}")"
-WORKTREE_BASE="$(realpath "eval/worktrees")"
+ROOT="$(git rev-parse --show-toplevel)"
+RESULTS_DIR="$ROOT/eval/results/${REQ_NAME}_${TIMESTAMP}"
+WORKTREE_BASE="$ROOT/eval/worktrees"
 TDD_WORKTREE="$WORKTREE_BASE/tdd_${TIMESTAMP}"
 BUILD_WORKTREE="$WORKTREE_BASE/build_${TIMESTAMP}"
 TDD_BRANCH="eval-tdd-${TIMESTAMP}"
@@ -43,7 +44,10 @@ pushd "$TDD_WORKTREE" > /dev/null
 claude --dangerously-skip-permissions -p \
   "/tdd-from-requirements
 
-$(cat "$REQUIREMENT")" \
+$(cat "$REQUIREMENT")
+
+---
+NOTE: This is a non-interactive automated eval run. Do not pause for user confirmation at any checkpoint. Proceed through all phases automatically without asking 'Continue?' or similar." \
   > "$RESULTS_DIR/tdd_claude_output.txt" 2>&1
 echo "  done (exit $?)"
 popd > /dev/null
@@ -54,7 +58,10 @@ pushd "$BUILD_WORKTREE" > /dev/null
 claude --dangerously-skip-permissions -p \
   "/build-from-requirements
 
-$(cat "$REQUIREMENT")" \
+$(cat "$REQUIREMENT")
+
+---
+NOTE: This is a non-interactive automated eval run. Do not pause for user confirmation at any checkpoint. Proceed through all phases automatically without asking 'Continue?' or similar." \
   > "$RESULTS_DIR/build_claude_output.txt" 2>&1
 echo "  done (exit $?)"
 popd > /dev/null
