@@ -57,17 +57,27 @@ class MainActivity : ComponentActivity() {
                                 Text("Unable to load question")
                             }
                         }
+                        viewModel.gameOver -> {
+                            GameOverScreen(
+                                score = viewModel.score,
+                                correctAnswered = viewModel.correctAnswered,
+                                totalAnswered = viewModel.totalAnswered,
+                                onPlayAgain = viewModel::resetGame,
+                                modifier = Modifier.padding(innerPadding),
+                            )
+                        }
                         else -> {
-                            val scoreColor =
-                                when {
-                                    !viewModel.answered -> MaterialTheme.colorScheme.onBackground
-                                    viewModel.isCorrect -> CorrectGreen
-                                    else -> MaterialTheme.colorScheme.error
+                            val livesColor =
+                                if (viewModel.answered && !viewModel.isCorrect) {
+                                    MaterialTheme.colorScheme.error
+                                } else {
+                                    MaterialTheme.colorScheme.onBackground
                                 }
 
                             TriviaQuestionScreen(
                                 score = viewModel.score,
-                                scoreColor = scoreColor,
+                                lives = viewModel.lives,
+                                livesColor = livesColor,
                                 questionText = viewModel.questionText,
                                 statUnitLabel = viewModel.statUnitLabel,
                                 choices = viewModel.choices,

@@ -71,6 +71,18 @@ constructor(
     var statUnitLabel by mutableStateOf("pts")
         private set
 
+    var lives by mutableIntStateOf(3)
+        private set
+
+    var totalAnswered by mutableIntStateOf(0)
+        private set
+
+    var correctAnswered by mutableIntStateOf(0)
+        private set
+
+    var gameOver by mutableStateOf(false)
+        private set
+
     val answered: Boolean
         get() = selectedPlayerId != null
 
@@ -99,16 +111,34 @@ constructor(
 
     fun selectAnswer(playerId: Int) {
         selectedPlayerId = playerId
+        totalAnswered++
         if (playerId == correctPlayer?.id) {
             score += 100
+            correctAnswered++
         } else {
-            score = 0
+            lives = maxOf(0, lives - 1)
         }
     }
 
     fun nextRound() {
         roundNumber++
         selectedPlayerId = null
+        if (lives == 0) {
+            gameOver = true
+            return
+        }
+        prepareRound()
+    }
+
+    fun resetGame() {
+        lives = 3
+        score = 0
+        totalAnswered = 0
+        correctAnswered = 0
+        selectedPlayerId = null
+        gameOver = false
+        pointsUsedIds = emptySet()
+        goalsUsedIds = emptySet()
         prepareRound()
     }
 

@@ -23,7 +23,8 @@ internal val CorrectGreen = Color(0xFF4CAF50)
 @Composable
 fun TriviaQuestionScreen(
     score: Int,
-    scoreColor: Color,
+    lives: Int,
+    livesColor: Color,
     questionText: String,
     statUnitLabel: String,
     choices: List<SkaterStatLeader>,
@@ -40,12 +41,21 @@ fun TriviaQuestionScreen(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            text = "Score: $score",
-            style = MaterialTheme.typography.titleMedium,
-            color = scoreColor,
+        Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-        )
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = "Score: $score",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            Text(
+                text = "Lives: $lives",
+                style = MaterialTheme.typography.titleMedium,
+                color = livesColor,
+            )
+        }
 
         Text(
             text = questionText,
