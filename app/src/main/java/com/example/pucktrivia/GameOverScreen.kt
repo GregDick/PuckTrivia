@@ -1,7 +1,5 @@
 package com.example.pucktrivia
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,24 +22,21 @@ fun GameOverScreen(
     onPlayAgain: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text(text = "Game Over", style = MaterialTheme.typography.headlineMedium)
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(text = "Score: $score", style = MaterialTheme.typography.titleLarge)
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "$correctAnswered / $totalAnswered correct",
-                style = MaterialTheme.typography.titleLarge,
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-            Button(onClick = onPlayAgain, modifier = Modifier.fillMaxWidth()) {
-                Text(text = "Play Again", style = MaterialTheme.typography.bodyLarge)
-            }
+    Column(
+        modifier = modifier.fillMaxSize().padding(top = 64.dp).padding(horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(text = "Game Over", style = MaterialTheme.typography.headlineLarge)
+        Spacer(modifier = Modifier.height(32.dp))
+        Text(text = "Score: $score", style = MaterialTheme.typography.displayMedium)
+        Spacer(modifier = Modifier.height(24.dp))
+        Text(
+            text = "$correctAnswered / $totalAnswered correct",
+            style = MaterialTheme.typography.displayMedium,
+        )
+        Spacer(modifier = Modifier.height(40.dp))
+        Button(onClick = onPlayAgain, modifier = Modifier.fillMaxWidth()) {
+            Text(text = "Play Again", style = MaterialTheme.typography.bodyLarge)
         }
     }
 }
