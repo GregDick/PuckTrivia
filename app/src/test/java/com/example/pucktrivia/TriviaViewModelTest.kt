@@ -100,7 +100,7 @@ class TriviaViewModelTest {
         }
 
     @Test
-    fun `selecting wrong answer resets score to 0`() =
+    fun `selecting wrong answer does not change score`() =
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
@@ -114,11 +114,11 @@ class TriviaViewModelTest {
             // Next round
             viewModel.nextRound()
 
-            // Select a wrong answer
+            // Select a wrong answer — score should remain 100
             val wrongId = viewModel.choices.first { it.id != viewModel.correctPlayer!!.id }.id
             viewModel.selectAnswer(wrongId)
 
-            assertEquals(0, viewModel.score)
+            assertEquals(100, viewModel.score)
         }
 
     @Test
@@ -144,7 +144,7 @@ class TriviaViewModelTest {
         }
 
     @Test
-    fun `after wrong answer next correct answer brings score to 100`() =
+    fun `after wrong answer next correct answer accumulates score`() =
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
@@ -154,16 +154,16 @@ class TriviaViewModelTest {
             viewModel.selectAnswer(viewModel.correctPlayer!!.id)
             assertEquals(100, viewModel.score)
 
-            // Wrong answer
+            // Wrong answer — score stays at 100
             viewModel.nextRound()
             val wrongId = viewModel.choices.first { it.id != viewModel.correctPlayer!!.id }.id
             viewModel.selectAnswer(wrongId)
-            assertEquals(0, viewModel.score)
+            assertEquals(100, viewModel.score)
 
-            // Correct answer again
+            // Correct answer again — score becomes 200
             viewModel.nextRound()
             viewModel.selectAnswer(viewModel.correctPlayer!!.id)
-            assertEquals(100, viewModel.score)
+            assertEquals(200, viewModel.score)
         }
 
     @Test

@@ -1,10 +1,12 @@
 package com.example.pucktrivia
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -23,7 +25,8 @@ internal val CorrectGreen = Color(0xFF4CAF50)
 @Composable
 fun TriviaQuestionScreen(
     score: Int,
-    scoreColor: Color,
+    lives: Int,
+    livesColor: Color,
     questionText: String,
     statUnitLabel: String,
     choices: List<SkaterStatLeader>,
@@ -35,79 +38,100 @@ fun TriviaQuestionScreen(
     onNextRound: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier.fillMaxSize().padding(horizontal = 24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            text = "Score: $score",
-            style = MaterialTheme.typography.titleMedium,
-            color = scoreColor,
-            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-        )
-
-        Text(
-            text = questionText,
-            style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.padding(bottom = 24.dp),
-        )
-
-        if (answered) {
+    Box(modifier = modifier.fillMaxSize().padding(horizontal = 24.dp)) {
+        // Score, lives, and feedback pinned to top
+        Column(
+            modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter).padding(top = 64.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             Text(
-                text = if (isCorrect) "Correct!" else "Incorrect!",
-                style = MaterialTheme.typography.titleLarge,
-                color = if (isCorrect) CorrectGreen else MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(bottom = 16.dp),
+                text = "Score: $score",
+                style = MaterialTheme.typography.headlineLarge,
+                color = MaterialTheme.colorScheme.onBackground,
             )
-        }
-
-        choices.forEach { player ->
-            val containerColor =
-                when {
-                    !answered -> MaterialTheme.colorScheme.primary
-                    player.id == correctPlayerId -> CorrectGreen
-                    player.id == selectedPlayerId -> MaterialTheme.colorScheme.error
-                    else -> MaterialTheme.colorScheme.primary
-                }
-
-            Button(
-                onClick = { onAnswerSelected(player.id) },
-                enabled = !answered,
-                colors =
-                    ButtonDefaults.buttonColors(
-                        containerColor = containerColor,
-                        disabledContainerColor = containerColor,
-                        disabledContentColor = MaterialTheme.colorScheme.onPrimary,
-                    ),
-                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+            Text(
+                text = "Lives: $lives",
+                style = MaterialTheme.typography.headlineLarge,
+                color = livesColor,
+            )
+            // Fixed-height container so feedback doesn't shift other elements
+            Box(
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                contentAlignment = Alignment.Center,
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
+                if (answered) {
                     Text(
-                        text = "${player.firstName} ${player.lastName}  ${player.teamAbbrev}",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f),
+                        text = if (isCorrect) "Correct!" else "Incorrect!",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = if (isCorrect) CorrectGreen else MaterialTheme.colorScheme.error,
                     )
-                    if (answered) {
-                        Text(
-                            text = "${player.value.toInt()} $statUnitLabel",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
                 }
             }
         }
 
-        if (answered) {
-            OutlinedButton(
-                onClick = onNextRound,
-                modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+        // Question, answers, next — centered on the full screen
+        Column(
+            modifier = Modifier.fillMaxWidth().align(Alignment.Center),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = questionText,
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(bottom = 24.dp),
+            )
+
+            choices.forEach { player ->
+                val containerColor =
+                    when {
+                        !answered -> MaterialTheme.colorScheme.primary
+                        player.id == correctPlayerId -> CorrectGreen
+                        player.id == selectedPlayerId -> MaterialTheme.colorScheme.error
+                        else -> MaterialTheme.colorScheme.primary
+                    }
+
+                Button(
+                    onClick = { onAnswerSelected(player.id) },
+                    enabled = !answered,
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor = containerColor,
+                            disabledContainerColor = containerColor,
+                            disabledContentColor = MaterialTheme.colorScheme.onPrimary,
+                        ),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "${player.firstName} ${player.lastName}  ${player.teamAbbrev}",
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f),
+                        )
+                        if (answered) {
+                            Text(
+                                text = "${player.value.toInt()} $statUnitLabel",
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Fixed-height container so the Next button doesn't shift other elements
+            Box(
+                modifier = Modifier.fillMaxWidth().height(72.dp).padding(top = 24.dp),
+                contentAlignment = Alignment.TopCenter,
             ) {
-                Text(text = "Next", style = MaterialTheme.typography.bodyLarge)
+                if (answered) {
+                    OutlinedButton(onClick = onNextRound, modifier = Modifier.fillMaxWidth()) {
+                        Text(text = "Next", style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
             }
         }
     }
