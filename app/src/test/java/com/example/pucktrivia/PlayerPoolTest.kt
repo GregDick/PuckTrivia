@@ -565,6 +565,115 @@ class PlayerPoolTest {
         }
 
     // -----------------------------------------------------------------------
+    // Pool Viability — types unable to form a 3-choice round are skipped
+    // -----------------------------------------------------------------------
+
+    @Test
+    fun `type with pool smaller than 3 is excluded from round selection`() =
+        runTest(testDispatcher) {
+            // 2 defenders (pool: ceil(2/2)=1, unviable) + 6 forwards (pool: 3, viable) in points.
+            val pts =
+                listOf(
+                        player(11, "D1", "D", 90.0),
+                        player(12, "D2", "D", 70.0),
+                        player(1, "F1", "C", 100.0),
+                        player(2, "F2", "C", 90.0),
+                        player(3, "F3", "C", 80.0),
+                        player(4, "F4", "C", 70.0),
+                        player(5, "F5", "C", 60.0),
+                        player(6, "F6", "C", 50.0),
+                    )
+                    .joinToString(",")
+            mockWebServer.enqueue(
+                MockResponse().setBody("""{"points":[$pts]}""").setResponseCode(200)
+            )
+            val viewModel = createViewModel(Random(42))
+            advanceUntilIdle()
+
+            // Defender pool exists (size 1) but is unviable; forward pool (size 3) is viable.
+            assertEquals(1, viewModel.pools[QuestionType.DEFENDERS_POINTS]!!.size)
+            assertEquals(3, viewModel.pools[QuestionType.FORWARDS_POINTS]!!.size)
+
+            // Every round across many attempts must fire the viable type and produce 3 choices.
+            repeat(10) {
+                assertEquals(3, viewModel.choices.size)
+                assertEquals(
+                    "Which of these forwards currently has the most points?",
+                    viewModel.questionText,
+                )
+                assertTrue(viewModel.choices.all { it.position == "C" })
+                viewModel.selectAnswer(viewModel.correctPlayer!!.id)
+                viewModel.nextRound()
+            }
+        }
+
+    @Test
+    fun `type whose pool collapses to fewer than 3 distinct values is excluded`() =
+        runTest(testDispatcher) {
+            // 6 defenders all tied at 10.0 → pool of 3 but only 1 distinct value (unviable).
+            // 6 forwards with distinct values → pool of 3 distinct values (viable).
+            val pts =
+                listOf(
+                        player(11, "D1", "D", 10.0),
+                        player(12, "D2", "D", 10.0),
+                        player(13, "D3", "D", 10.0),
+                        player(14, "D4", "D", 10.0),
+                        player(15, "D5", "D", 10.0),
+                        player(16, "D6", "D", 10.0),
+                        player(1, "F1", "C", 100.0),
+                        player(2, "F2", "C", 90.0),
+                        player(3, "F3", "C", 80.0),
+                        player(4, "F4", "C", 70.0),
+                        player(5, "F5", "C", 60.0),
+                        player(6, "F6", "C", 50.0),
+                    )
+                    .joinToString(",")
+            mockWebServer.enqueue(
+                MockResponse().setBody("""{"points":[$pts]}""").setResponseCode(200)
+            )
+            val viewModel = createViewModel(Random(42))
+            advanceUntilIdle()
+
+            assertEquals(3, viewModel.pools[QuestionType.DEFENDERS_POINTS]!!.size)
+            assertEquals(3, viewModel.pools[QuestionType.FORWARDS_POINTS]!!.size)
+
+            repeat(10) {
+                assertEquals(3, viewModel.choices.size)
+                assertEquals(3, viewModel.choices.map { it.value }.distinct().size)
+                assertEquals(
+                    "Which of these forwards currently has the most points?",
+                    viewModel.questionText,
+                )
+                viewModel.selectAnswer(viewModel.correctPlayer!!.id)
+                viewModel.nextRound()
+            }
+        }
+
+    @Test
+    fun `when no type has 3 distinct values no round is prepared`() =
+        runTest(testDispatcher) {
+            // Every pool is unviable: forwards have only 2 players, defenders all tied.
+            val pts =
+                listOf(
+                        player(1, "F1", "C", 100.0),
+                        player(2, "F2", "C", 90.0),
+                        player(11, "D1", "D", 10.0),
+                        player(12, "D2", "D", 10.0),
+                        player(13, "D3", "D", 10.0),
+                        player(14, "D4", "D", 10.0),
+                    )
+                    .joinToString(",")
+            mockWebServer.enqueue(
+                MockResponse().setBody("""{"points":[$pts]}""").setResponseCode(200)
+            )
+            val viewModel = createViewModel(Random(42))
+            advanceUntilIdle()
+
+            assertEquals(0, viewModel.choices.size)
+            assertNull(viewModel.correctPlayer)
+        }
+
+    // -----------------------------------------------------------------------
     // Independent Used-Player Tracking (Story 4)
     // -----------------------------------------------------------------------
 

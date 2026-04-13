@@ -150,7 +150,7 @@ constructor(
     }
 
     private fun prepareRound() {
-        val availableTypes = pools.keys.filter { pools[it]!!.isNotEmpty() }
+        val availableTypes = pools.keys.filter { pools[it]!!.distinctBy { p -> p.value }.size >= 3 }
         if (availableTypes.isEmpty()) return
 
         val type = availableTypes[random.nextInt(availableTypes.size)]
