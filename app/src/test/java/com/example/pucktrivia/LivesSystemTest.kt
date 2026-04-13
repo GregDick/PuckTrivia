@@ -1,5 +1,6 @@
 package com.example.pucktrivia
 
+import com.example.pucktrivia.model.QuestionType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -36,37 +37,34 @@ class LivesSystemTest {
         mockWebServer.shutdown()
     }
 
-    private fun createStatsJson(players: List<Triple<Int, String, Double>>): String {
-        val playersJson =
-            players.joinToString(",") { (id, name, value) ->
-                """
-            {
-                "id": $id,
-                "firstName": {"default": "$name"},
-                "lastName": {"default": "Player"},
-                "sweaterNumber": ${id + 10},
-                "teamAbbrev": "TST",
-                "position": "C",
-                "value": $value
-            }
-            """
-                    .trimIndent()
-            }
-        return """{"points": [$playersJson]}"""
+    /**
+     * Creates a points-only JSON response with 6 forwards ("C") and 6 defenders ("D"). Each group
+     * yields a pool of 3 (ceil(6/2)=3), sufficient for multiple rounds with reset.
+     */
+    private fun createStatsJson(): String {
+        fun p(id: Int, name: String, pos: String, value: Double) =
+            """{"id":$id,"firstName":{"default":"$name"},"lastName":{"default":"Player"},"sweaterNumber":${id + 10},"teamAbbrev":"TST","position":"$pos","value":$value}"""
+        val players =
+            listOf(
+                    p(1, "Alice", "C", 100.0),
+                    p(2, "Bob", "C", 80.0),
+                    p(3, "Carol", "C", 60.0),
+                    p(4, "Dave", "C", 40.0),
+                    p(5, "Eve", "C", 20.0),
+                    p(6, "Frank", "C", 10.0),
+                    p(11, "Greg", "D", 90.0),
+                    p(12, "Hana", "D", 70.0),
+                    p(13, "Ivan", "D", 50.0),
+                    p(14, "Jess", "D", 30.0),
+                    p(15, "Karl", "D", 15.0),
+                    p(16, "Lena", "D", 5.0),
+                )
+                .joinToString(",")
+        return """{"points":[$players]}"""
     }
 
     private fun enqueueDefaultResponse() {
-        val json =
-            createStatsJson(
-                listOf(
-                    Triple(1, "Alice", 100.0),
-                    Triple(2, "Bob", 80.0),
-                    Triple(3, "Carol", 60.0),
-                    Triple(4, "Dave", 40.0),
-                    Triple(5, "Eve", 20.0),
-                )
-            )
-        mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
+        mockWebServer.enqueue(MockResponse().setBody(createStatsJson()).setResponseCode(200))
     }
 
     private fun createViewModel(): TriviaViewModel {
@@ -132,13 +130,11 @@ class LivesSystemTest {
             val viewModel = createViewModel()
             advanceUntilIdle()
 
-            // Lose all 3 lives
             viewModel.selectWrong()
             viewModel.nextRound()
             viewModel.selectWrong()
             viewModel.nextRound()
             viewModel.selectWrong()
-            // gameOver is now true; but verify lives is 0 not negative
             assertEquals(0, viewModel.lives)
         }
 
@@ -271,7 +267,7 @@ class LivesSystemTest {
             viewModel.nextRound()
             viewModel.selectWrong()
 
-            assertFalse(viewModel.gameOver) // Still on feedback screen
+            assertFalse(viewModel.gameOver)
             viewModel.nextRound()
             assertTrue(viewModel.gameOver)
         }
@@ -304,7 +300,6 @@ class LivesSystemTest {
             val viewModel = createViewModel()
             advanceUntilIdle()
 
-            // Play a game to completion
             viewModel.selectCorrect()
             viewModel.nextRound()
             viewModel.selectWrong()
@@ -328,7 +323,7 @@ class LivesSystemTest {
         }
 
     @Test
-    fun `resetGame resets used player pools so choices come from a fresh pool`() =
+    fun `resetGame clears all used player pools`() =
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
@@ -341,9 +336,24 @@ class LivesSystemTest {
 
             viewModel.resetGame()
 
-            // After reset, pointsUsedIds contains exactly the 3 IDs from the new round
-            // (the pool was cleared and prepareRound ran fresh).
-            assertEquals(viewModel.choices.map { it.id }.toSet(), viewModel.pointsUsedIds)
-            assertEquals(3, viewModel.pointsUsedIds.size)
+            // After reset, all used sets are empty (prepareRound then populates the selected type)
+            val selectedType =
+                QuestionType.entries.firstOrNull { it.questionText == viewModel.questionText }
+            for (type in QuestionType.entries) {
+                val usedSize = (viewModel.usedIds[type] ?: emptySet()).size
+                if (type == selectedType) {
+                    assertEquals(
+                        "After resetGame, selected type's usedIds should contain exactly the new round's 3 choices",
+                        3,
+                        usedSize,
+                    )
+                } else {
+                    assertEquals(
+                        "After resetGame, non-selected type $type should have empty usedIds",
+                        0,
+                        usedSize,
+                    )
+                }
+            }
         }
 }

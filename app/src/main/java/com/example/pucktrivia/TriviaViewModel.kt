@@ -9,7 +9,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.pucktrivia.di.IoDispatcher
 import com.example.pucktrivia.di.StatsUrl
+import com.example.pucktrivia.model.QuestionType
 import com.example.pucktrivia.model.SkaterStatLeader
+import com.example.pucktrivia.model.positionGroup
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
@@ -44,16 +46,10 @@ constructor(
     var roundNumber by mutableIntStateOf(0)
         private set
 
-    var pointsPool by mutableStateOf<List<SkaterStatLeader>>(emptyList())
+    var pools by mutableStateOf<Map<QuestionType, List<SkaterStatLeader>>>(emptyMap())
         internal set
 
-    var goalsPool by mutableStateOf<List<SkaterStatLeader>?>(null)
-        internal set
-
-    var pointsUsedIds by mutableStateOf(emptySet<Int>())
-        internal set
-
-    var goalsUsedIds by mutableStateOf(emptySet<Int>())
+    var usedIds by mutableStateOf<Map<QuestionType, Set<Int>>>(emptyMap())
         internal set
 
     var selectedPlayerId by mutableStateOf<Int?>(null)
@@ -137,60 +133,40 @@ constructor(
         correctAnswered = 0
         selectedPlayerId = null
         gameOver = false
-        pointsUsedIds = emptySet()
-        goalsUsedIds = emptySet()
+        usedIds = emptyMap()
         prepareRound()
     }
 
     private fun buildPools(data: Map<String, List<SkaterStatLeader>>) {
-        val pts = data["points"]
-        if (pts != null) {
-            val sorted = pts.sortedByDescending { it.value }
-            pointsPool = sorted.take(kotlin.math.ceil(sorted.size / 2.0).toInt())
+        val built = mutableMapOf<QuestionType, List<SkaterStatLeader>>()
+        for (type in QuestionType.entries) {
+            val players = data[type.statKey] ?: continue
+            val group = players.filter { it.positionGroup() == type.positionGroup }
+            if (group.isEmpty()) continue
+            val sorted = group.sortedByDescending { it.value }
+            built[type] = sorted.take(kotlin.math.ceil(sorted.size / 2.0).toInt())
         }
-        val gls = data["goals"]
-        if (gls != null) {
-            val sorted = gls.sortedByDescending { it.value }
-            goalsPool = sorted.take(kotlin.math.ceil(sorted.size / 2.0).toInt())
-        }
+        pools = built
     }
 
     private fun prepareRound() {
-        val pPool = pointsPool
-        if (pPool.isEmpty()) return
-        val gPool = goalsPool
+        val availableTypes = pools.keys.filter { pools[it]!!.isNotEmpty() }
+        if (availableTypes.isEmpty()) return
 
-        // Select question type
-        val useGoals = gPool != null && random.nextBoolean()
+        val type = availableTypes[random.nextInt(availableTypes.size)]
+        questionText = type.questionText
+        statUnitLabel = type.unitLabel
 
-        if (useGoals) {
-            questionText = "Which of these players currently has the most goals?"
-            statUnitLabel = "g"
-        } else {
-            questionText = "Which of these players currently has the most points?"
-            statUnitLabel = "pts"
-        }
+        val pool = pools[type]!!
+        var currentUsed = usedIds[type] ?: emptySet()
 
-        val pool = if (useGoals) gPool!! else pPool
-        var usedIds = if (useGoals) goalsUsedIds else pointsUsedIds
-
-        // Greedy no-tie pick of 3
-        var picked = greedyPick(pool, usedIds)
-
-        // If <3, reset this type's used set and retry
+        var picked = greedyPick(pool, currentUsed)
         if (picked.size < 3) {
-            usedIds = emptySet()
-            picked = greedyPick(pool, usedIds)
+            currentUsed = emptySet()
+            picked = greedyPick(pool, currentUsed)
         }
 
-        // Update the appropriate used set
-        val newUsed = usedIds + picked.map { it.id }
-        if (useGoals) {
-            goalsUsedIds = newUsed
-        } else {
-            pointsUsedIds = newUsed
-        }
-
+        usedIds = usedIds + (type to (currentUsed + picked.map { it.id }))
         choices = picked
         correctPlayer = picked.maxByOrNull { it.value }
     }

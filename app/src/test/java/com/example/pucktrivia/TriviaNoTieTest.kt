@@ -17,10 +17,10 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * Tests that verify no two player options ever share the same point value.
+ * Tests that verify no two player options ever share the same stat value.
  *
- * Bug: When multiple players in the data have identical point values, prepareRound() can select
- * them as choices, creating ties — including ties for the correct answer.
+ * All players in these tests are forwards ("C") so they land in the FORWARDS_POINTS pool, making
+ * the test data straightforward to reason about.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TriviaNoTieTest {
@@ -41,23 +41,17 @@ class TriviaNoTieTest {
         mockWebServer.shutdown()
     }
 
+    /**
+     * Creates JSON with only a "points" key. All players are forwards ("C") so the FORWARDS_POINTS
+     * pool is the only available pool, making question type selection deterministic regardless of
+     * the random seed.
+     */
     private fun createStatsJson(players: List<Triple<Int, String, Double>>): String {
         val playersJson =
             players.joinToString(",") { (id, name, value) ->
-                """
-            {
-                "id": $id,
-                "firstName": {"default": "$name"},
-                "lastName": {"default": "Player"},
-                "sweaterNumber": ${id + 10},
-                "teamAbbrev": "TST",
-                "position": "C",
-                "value": $value
+                """{"id":$id,"firstName":{"default":"$name"},"lastName":{"default":"Player"},"sweaterNumber":${id + 10},"teamAbbrev":"TST","position":"C","value":$value}"""
             }
-            """
-                    .trimIndent()
-            }
-        return """{"points": [$playersJson]}"""
+        return """{"points":[$playersJson]}"""
     }
 
     private fun createViewModel(): TriviaViewModel {
@@ -68,7 +62,6 @@ class TriviaNoTieTest {
     @Test
     fun `all choices must have distinct point values when all players have same points`() =
         runTest(testDispatcher) {
-            // All 3 players have the same value — any selection will produce ties
             val json =
                 createStatsJson(
                     listOf(
@@ -95,7 +88,6 @@ class TriviaNoTieTest {
     @Test
     fun `correct answer must not tie with any other choice`() =
         runTest(testDispatcher) {
-            // Two players tied at the top value — correct answer is ambiguous
             val json =
                 createStatsJson(
                     listOf(
@@ -124,7 +116,6 @@ class TriviaNoTieTest {
     @Test
     fun `non-correct choices must not tie with each other`() =
         runTest(testDispatcher) {
-            // Top player is unique, but the other two are tied
             val json =
                 createStatsJson(
                     listOf(
@@ -153,7 +144,6 @@ class TriviaNoTieTest {
     @Test
     fun `choices have distinct values when pool has many duplicates`() =
         runTest(testDispatcher) {
-            // Exactly 3 players with duplicate values — take(3) must select all, guaranteeing ties
             val json =
                 createStatsJson(
                     listOf(
