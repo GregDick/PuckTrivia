@@ -1,5 +1,6 @@
 package com.example.pucktrivia
 
+import com.example.pucktrivia.model.QuestionType
 import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -19,17 +20,15 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * Tests for the "most goals" question type feature.
+ * Tests for question type selection and per-type pool mechanics.
  *
- * These tests verify:
- * - ViewModel accepts a Random constructor parameter
- * - ViewModel exposes statUnitLabel and questionText state
- * - Random selection between "most points" and "most goals" questions
- * - Goals data stored under "goals" key in statsData
- * - Fallback to points-only when goals data is unavailable
- * - Independent per-type used-player pools
- * - Per-type pool reset when a type runs out of unused players
- * - No-tie invariant for goals questions
+ * Test data uses all-forward ("C") players unless otherwise noted, so only FORWARDS_POINTS and
+ * FORWARDS_GOALS pools exist when both stat keys are present.
+ *
+ * Type selection uses random.nextInt(availableTypes.size). When two types are available (size=2)
+ * and each pool has 3 players, shuffle calls are nextInt(3) then nextInt(2). The
+ * [makeTypeControlledRandom] helper intercepts the first nextInt call each round (type selection)
+ * and delegates shuffle calls to a real Random.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class GoalsQuestionTypeTest {
@@ -50,56 +49,97 @@ class GoalsQuestionTypeTest {
         mockWebServer.shutdown()
     }
 
-    /** Creates JSON with both "points" and "goals" keys. */
+    /** Creates JSON with both "points" and "goals" keys. All players are forwards ("C"). */
     private fun createStatsJsonWithGoals(
         pointsPlayers: List<Triple<Int, String, Double>>,
         goalsPlayers: List<Triple<Int, String, Double>>,
     ): String {
         fun playersToJson(players: List<Triple<Int, String, Double>>): String =
             players.joinToString(",") { (id, name, value) ->
-                """
-                {
-                    "id": $id,
-                    "firstName": {"default": "$name"},
-                    "lastName": {"default": "Player"},
-                    "sweaterNumber": ${id + 10},
-                    "teamAbbrev": "TST",
-                    "position": "C",
-                    "value": $value
-                }
-                """
-                    .trimIndent()
+                """{"id":$id,"firstName":{"default":"$name"},"lastName":{"default":"Player"},"sweaterNumber":${id + 10},"teamAbbrev":"TST","position":"C","value":$value}"""
             }
-        return """{"points": [${playersToJson(pointsPlayers)}], "goals": [${playersToJson(goalsPlayers)}]}"""
+        return """{"points":[${playersToJson(pointsPlayers)}],"goals":[${playersToJson(goalsPlayers)}]}"""
     }
 
-    /** Creates JSON with only "points" key (no goals data). */
+    /** Creates JSON with only "points" key (no goals data). All players are forwards ("C"). */
     private fun createPointsOnlyJson(players: List<Triple<Int, String, Double>>): String {
         val playersJson =
             players.joinToString(",") { (id, name, value) ->
-                """
-            {
-                "id": $id,
-                "firstName": {"default": "$name"},
-                "lastName": {"default": "Player"},
-                "sweaterNumber": ${id + 10},
-                "teamAbbrev": "TST",
-                "position": "C",
-                "value": $value
+                """{"id":$id,"firstName":{"default":"$name"},"lastName":{"default":"Player"},"sweaterNumber":${id + 10},"teamAbbrev":"TST","position":"C","value":$value}"""
             }
-            """
-                    .trimIndent()
+        return """{"points":[$playersJson]}"""
+    }
+
+    /** Creates JSON with only "goals" key (no points data). All players are forwards ("C"). */
+    private fun createGoalsOnlyJson(players: List<Triple<Int, String, Double>>): String {
+        val playersJson =
+            players.joinToString(",") { (id, name, value) ->
+                """{"id":$id,"firstName":{"default":"$name"},"lastName":{"default":"Player"},"sweaterNumber":${id + 10},"teamAbbrev":"TST","position":"C","value":$value}"""
             }
-        return """{"points": [$playersJson]}"""
+        return """{"goals":[$playersJson]}"""
     }
 
     private fun mockUrl(): String =
         mockWebServer.url("/v1/skater-stats-leaders/current?limit=-1").toString()
 
-    /** Creates a ViewModel with a Random parameter for deterministic question type selection. */
     private fun createViewModel(random: Random): TriviaViewModel {
         return TriviaViewModel(OkHttpClient(), mockUrl(), testDispatcher, random)
     }
+
+    /**
+     * Returns a Random that controls type selection for multi-round tests.
+     *
+     * When two types are available (FORWARDS_POINTS index=0, FORWARDS_GOALS index=1) and each pool
+     * has 3 players, the call pattern per round is: nextInt(2) [type selection], nextInt(3)
+     * [shuffle], nextInt(2) [shuffle]
+     *
+     * This helper intercepts the first nextInt call per round as the type selection and delegates
+     * the remaining two (shuffle) to the real delegate Random.
+     *
+     * Assumption: pool size is exactly 3 and no mid-round reset occurs.
+     */
+    private fun makeTypeControlledRandom(typeIndices: List<Int>): Random {
+        val delegate = Random(42)
+        val it = typeIndices.iterator()
+        var isTypeCall = true
+        var shuffleCallsRemaining = 0
+        return object : Random() {
+            override fun nextBits(bitCount: Int): Int = delegate.nextBits(bitCount)
+
+            override fun nextInt(until: Int): Int {
+                if (isTypeCall && it.hasNext()) {
+                    isTypeCall = false
+                    shuffleCallsRemaining = 2 // 2 shuffle calls for pool of size 3
+                    return it.next()
+                }
+                if (shuffleCallsRemaining > 0) {
+                    shuffleCallsRemaining--
+                    if (shuffleCallsRemaining == 0) isTypeCall = true
+                }
+                return delegate.nextInt(until)
+            }
+        }
+    }
+
+    private val defaultPointsPlayers =
+        listOf(
+            Triple(1, "Alice", 100.0),
+            Triple(2, "Bob", 80.0),
+            Triple(3, "Carol", 60.0),
+            Triple(7, "Grace", 40.0),
+            Triple(8, "Hank", 20.0),
+            Triple(9, "Ivy", 10.0),
+        )
+
+    private val defaultGoalsPlayers =
+        listOf(
+            Triple(4, "Dave", 50.0),
+            Triple(5, "Eve", 40.0),
+            Triple(6, "Frank", 30.0),
+            Triple(10, "Jack", 20.0),
+            Triple(11, "Kate", 10.0),
+            Triple(12, "Leo", 5.0),
+        )
 
     // -----------------------------------------------------------------------
     // Story 1: Fetch and Store Goals Data
@@ -108,33 +148,11 @@ class GoalsQuestionTypeTest {
     @Test
     fun `goals data is stored in statsData under goals key`() =
         runTest(testDispatcher) {
-            // Arrange
-            val json =
-                createStatsJsonWithGoals(
-                    pointsPlayers =
-                        listOf(
-                            Triple(1, "Alice", 100.0),
-                            Triple(2, "Bob", 80.0),
-                            Triple(3, "Carol", 60.0),
-                            Triple(7, "Grace", 40.0),
-                            Triple(8, "Hank", 20.0),
-                            Triple(9, "Ivy", 10.0),
-                        ),
-                    goalsPlayers =
-                        listOf(
-                            Triple(4, "Dave", 50.0),
-                            Triple(5, "Eve", 40.0),
-                            Triple(6, "Frank", 30.0),
-                            Triple(10, "Jack", 20.0),
-                            Triple(11, "Kate", 10.0),
-                            Triple(12, "Leo", 5.0),
-                        ),
-                )
+            val json = createStatsJsonWithGoals(defaultPointsPlayers, defaultGoalsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
-            // Assert
             assertNotNull("statsData should contain 'goals' key", viewModel.statsData["goals"])
             assertEquals(6, viewModel.statsData["goals"]!!.size)
         }
@@ -142,33 +160,11 @@ class GoalsQuestionTypeTest {
     @Test
     fun `goals entries have correct fields`() =
         runTest(testDispatcher) {
-            // Arrange
-            val json =
-                createStatsJsonWithGoals(
-                    pointsPlayers =
-                        listOf(
-                            Triple(1, "Alice", 100.0),
-                            Triple(2, "Bob", 80.0),
-                            Triple(3, "Carol", 60.0),
-                            Triple(7, "Grace", 40.0),
-                            Triple(8, "Hank", 20.0),
-                            Triple(9, "Ivy", 10.0),
-                        ),
-                    goalsPlayers =
-                        listOf(
-                            Triple(4, "Dave", 50.0),
-                            Triple(5, "Eve", 40.0),
-                            Triple(6, "Frank", 30.0),
-                            Triple(10, "Jack", 20.0),
-                            Triple(11, "Kate", 10.0),
-                            Triple(12, "Leo", 5.0),
-                        ),
-                )
+            val json = createStatsJsonWithGoals(defaultPointsPlayers, defaultGoalsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
-            // Assert
             val goalsPlayer = viewModel.statsData["goals"]!!.first()
             assertEquals(4, goalsPlayer.id)
             assertEquals("Dave", goalsPlayer.firstName)
@@ -181,7 +177,6 @@ class GoalsQuestionTypeTest {
     @Test
     fun `missing goals key falls back to points without crash`() =
         runTest(testDispatcher) {
-            // Arrange - JSON has only "points", no "goals"
             val json =
                 createPointsOnlyJson(
                     listOf(
@@ -197,7 +192,6 @@ class GoalsQuestionTypeTest {
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
-            // Assert - should not crash, should have choices from points data
             assertEquals(3, viewModel.choices.size)
             assertNotNull(viewModel.correctPlayer)
         }
@@ -209,340 +203,153 @@ class GoalsQuestionTypeTest {
     @Test
     fun `viewModel accepts Random constructor parameter`() =
         runTest(testDispatcher) {
-            // Arrange & Act - this test verifies the constructor signature compiles
-            val json =
-                createStatsJsonWithGoals(
-                    pointsPlayers =
-                        listOf(
-                            Triple(1, "Alice", 100.0),
-                            Triple(2, "Bob", 80.0),
-                            Triple(3, "Carol", 60.0),
-                            Triple(7, "Grace", 40.0),
-                            Triple(8, "Hank", 20.0),
-                            Triple(9, "Ivy", 10.0),
-                        ),
-                    goalsPlayers =
-                        listOf(
-                            Triple(4, "Dave", 50.0),
-                            Triple(5, "Eve", 40.0),
-                            Triple(6, "Frank", 30.0),
-                            Triple(10, "Jack", 20.0),
-                            Triple(11, "Kate", 10.0),
-                            Triple(12, "Leo", 5.0),
-                        ),
-                )
+            val json = createStatsJsonWithGoals(defaultPointsPlayers, defaultGoalsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
             val viewModel = createViewModel(Random(0))
             advanceUntilIdle()
 
-            // Assert - ViewModel was created successfully
             assertNotNull(viewModel)
         }
 
     @Test
-    fun `seeded random producing 0 selects points question`() =
+    fun `points only data always presents forwards points question`() =
         runTest(testDispatcher) {
-            // Arrange - use a seeded Random that produces nextBoolean() = false (points)
-            // We find a seed that gives nextBoolean() = false
-            val seed = generateSequence(0) { it + 1 }.first { !Random(it).nextBoolean() }
-            val json =
-                createStatsJsonWithGoals(
-                    pointsPlayers =
-                        listOf(
-                            Triple(1, "Alice", 100.0),
-                            Triple(2, "Bob", 80.0),
-                            Triple(3, "Carol", 60.0),
-                            Triple(7, "Grace", 40.0),
-                            Triple(8, "Hank", 20.0),
-                            Triple(9, "Ivy", 10.0),
-                        ),
-                    goalsPlayers =
-                        listOf(
-                            Triple(4, "Dave", 50.0),
-                            Triple(5, "Eve", 40.0),
-                            Triple(6, "Frank", 30.0),
-                            Triple(10, "Jack", 20.0),
-                            Triple(11, "Kate", 10.0),
-                            Triple(12, "Leo", 5.0),
-                        ),
-                )
+            // With no goals key, only FORWARDS_POINTS pool exists → always selected
+            val json = createPointsOnlyJson(defaultPointsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
-            val viewModel = createViewModel(Random(seed))
+            val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
-            // Assert
             assertEquals(
-                "Which of these players currently has the most points?",
+                "Which of these forwards currently has the most points?",
                 viewModel.questionText,
             )
             assertEquals("pts", viewModel.statUnitLabel)
         }
 
     @Test
-    fun `seeded random producing 1 selects goals question`() =
+    fun `goals only data always presents forwards goals question`() =
         runTest(testDispatcher) {
-            // Arrange - use a seeded Random that produces nextBoolean() = true (goals)
-            val seed = generateSequence(0) { it + 1 }.first { Random(it).nextBoolean() }
-            val json =
-                createStatsJsonWithGoals(
-                    pointsPlayers =
-                        listOf(
-                            Triple(1, "Alice", 100.0),
-                            Triple(2, "Bob", 80.0),
-                            Triple(3, "Carol", 60.0),
-                            Triple(7, "Grace", 40.0),
-                            Triple(8, "Hank", 20.0),
-                            Triple(9, "Ivy", 10.0),
-                        ),
-                    goalsPlayers =
-                        listOf(
-                            Triple(4, "Dave", 50.0),
-                            Triple(5, "Eve", 40.0),
-                            Triple(6, "Frank", 30.0),
-                            Triple(10, "Jack", 20.0),
-                            Triple(11, "Kate", 10.0),
-                            Triple(12, "Leo", 5.0),
-                        ),
-                )
+            // With no points key, only FORWARDS_GOALS pool exists → always selected
+            val json = createGoalsOnlyJson(defaultGoalsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
-            val viewModel = createViewModel(Random(seed))
+            val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
-            // Assert
             assertEquals(
-                "Which of these players currently has the most goals?",
+                "Which of these forwards currently has the most goals?",
                 viewModel.questionText,
             )
             assertEquals("g", viewModel.statUnitLabel)
         }
 
     @Test
-    fun `points question draws choices from points leaderboard`() =
+    fun `points question draws choices from forwards points pool`() =
         runTest(testDispatcher) {
-            // Arrange - force points question via seed
-            val seed = generateSequence(0) { it + 1 }.first { !Random(it).nextBoolean() }
-            val json =
-                createStatsJsonWithGoals(
-                    pointsPlayers =
-                        listOf(
-                            Triple(1, "Alice", 100.0),
-                            Triple(2, "Bob", 80.0),
-                            Triple(3, "Carol", 60.0),
-                            Triple(7, "Grace", 40.0),
-                            Triple(8, "Hank", 20.0),
-                            Triple(9, "Ivy", 10.0),
-                        ),
-                    goalsPlayers =
-                        listOf(
-                            Triple(4, "Dave", 50.0),
-                            Triple(5, "Eve", 40.0),
-                            Triple(6, "Frank", 30.0),
-                            Triple(10, "Jack", 20.0),
-                            Triple(11, "Kate", 10.0),
-                            Triple(12, "Leo", 5.0),
-                        ),
-                )
+            // Points only → FORWARDS_POINTS always selected
+            val json = createPointsOnlyJson(defaultPointsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
-            val viewModel = createViewModel(Random(seed))
+            val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
-            // Assert - all choice IDs should be from points pool (top 50% = IDs 1, 2, 3)
-            val pointsPoolIds = viewModel.pointsPool.map { it.id }.toSet()
+            val poolIds = viewModel.pools[QuestionType.FORWARDS_POINTS]!!.map { it.id }.toSet()
             assertTrue(
-                "Choices should be drawn from points pool, but got IDs: ${viewModel.choices.map { it.id }}",
-                viewModel.choices.all { it.id in pointsPoolIds },
+                "Choices should be drawn from forwards points pool, but got IDs: ${viewModel.choices.map { it.id }}",
+                viewModel.choices.all { it.id in poolIds },
             )
         }
 
     @Test
-    fun `goals question draws choices from goals leaderboard`() =
+    fun `goals question draws choices from forwards goals pool`() =
         runTest(testDispatcher) {
-            // Arrange - force goals question via seed
-            val seed = generateSequence(0) { it + 1 }.first { Random(it).nextBoolean() }
-            val json =
-                createStatsJsonWithGoals(
-                    pointsPlayers =
-                        listOf(
-                            Triple(1, "Alice", 100.0),
-                            Triple(2, "Bob", 80.0),
-                            Triple(3, "Carol", 60.0),
-                            Triple(7, "Grace", 40.0),
-                            Triple(8, "Hank", 20.0),
-                            Triple(9, "Ivy", 10.0),
-                        ),
-                    goalsPlayers =
-                        listOf(
-                            Triple(4, "Dave", 50.0),
-                            Triple(5, "Eve", 40.0),
-                            Triple(6, "Frank", 30.0),
-                            Triple(10, "Jack", 20.0),
-                            Triple(11, "Kate", 10.0),
-                            Triple(12, "Leo", 5.0),
-                        ),
-                )
+            // Goals only → FORWARDS_GOALS always selected
+            val json = createGoalsOnlyJson(defaultGoalsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
-            val viewModel = createViewModel(Random(seed))
+            val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
-            // Assert - all choice IDs should be from goals pool (top 50% = IDs 4, 5, 6)
-            val goalsPoolIds = viewModel.goalsPool!!.map { it.id }.toSet()
+            val poolIds = viewModel.pools[QuestionType.FORWARDS_GOALS]!!.map { it.id }.toSet()
             assertTrue(
-                "Choices should be drawn from goals pool, but got IDs: ${viewModel.choices.map { it.id }}",
-                viewModel.choices.all { it.id in goalsPoolIds },
+                "Choices should be drawn from forwards goals pool, but got IDs: ${viewModel.choices.map { it.id }}",
+                viewModel.choices.all { it.id in poolIds },
             )
         }
 
     @Test
     fun `correct answer is highest value among goals choices`() =
         runTest(testDispatcher) {
-            // Arrange - force goals question
-            val seed = generateSequence(0) { it + 1 }.first { Random(it).nextBoolean() }
-            val json =
-                createStatsJsonWithGoals(
-                    pointsPlayers =
-                        listOf(
-                            Triple(1, "Alice", 100.0),
-                            Triple(2, "Bob", 80.0),
-                            Triple(3, "Carol", 60.0),
-                            Triple(7, "Grace", 40.0),
-                            Triple(8, "Hank", 20.0),
-                            Triple(9, "Ivy", 10.0),
-                        ),
-                    goalsPlayers =
-                        listOf(
-                            Triple(4, "Dave", 50.0),
-                            Triple(5, "Eve", 40.0),
-                            Triple(6, "Frank", 30.0),
-                            Triple(10, "Jack", 20.0),
-                            Triple(11, "Kate", 10.0),
-                            Triple(12, "Leo", 5.0),
-                        ),
-                )
+            val json = createGoalsOnlyJson(defaultGoalsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
-            val viewModel = createViewModel(Random(seed))
+            val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
-            // Assert
             val maxValue = viewModel.choices.maxOf { it.value }
             assertEquals(maxValue, viewModel.correctPlayer!!.value, 0.001)
         }
 
     @Test
-    fun `goals data unavailable always presents points question`() =
+    fun `goals data unavailable always presents forwards points question`() =
         runTest(testDispatcher) {
-            // Arrange - no goals key, seed that would select goals
-            val seed = generateSequence(0) { it + 1 }.first { Random(it).nextBoolean() }
-            val json =
-                createPointsOnlyJson(
-                    listOf(
-                        Triple(1, "Alice", 100.0),
-                        Triple(2, "Bob", 80.0),
-                        Triple(3, "Carol", 60.0),
-                        Triple(4, "Dave", 40.0),
-                        Triple(5, "Eve", 20.0),
-                        Triple(6, "Frank", 10.0),
-                    )
-                )
+            val json = createPointsOnlyJson(defaultPointsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
-            val viewModel = createViewModel(Random(seed))
+            val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
-            // Assert - should fall back to points
             assertEquals(
-                "Which of these players currently has the most points?",
+                "Which of these forwards currently has the most points?",
                 viewModel.questionText,
             )
             assertEquals("pts", viewModel.statUnitLabel)
         }
 
     @Test
-    fun `statUnitLabel changes when question type changes across rounds`() =
+    fun `statUnitLabel is consistent with questionText on each round`() =
         runTest(testDispatcher) {
-            // Arrange - first round points (false), second round goals (true)
-            val boolSequence = listOf(false, true).iterator()
-            val customRandom =
-                object : Random() {
-                    private val delegate = Random(42)
-
-                    override fun nextBits(bitCount: Int): Int = delegate.nextBits(bitCount)
-
-                    override fun nextBoolean(): Boolean = boolSequence.next()
-                }
-            val json =
-                createStatsJsonWithGoals(
-                    pointsPlayers =
-                        listOf(
-                            Triple(1, "Alice", 100.0),
-                            Triple(2, "Bob", 80.0),
-                            Triple(3, "Carol", 60.0),
-                            Triple(7, "Grace", 40.0),
-                            Triple(8, "Hank", 20.0),
-                            Triple(9, "Ivy", 10.0),
-                        ),
-                    goalsPlayers =
-                        listOf(
-                            Triple(4, "Dave", 50.0),
-                            Triple(5, "Eve", 40.0),
-                            Triple(6, "Frank", 30.0),
-                            Triple(10, "Jack", 20.0),
-                            Triple(11, "Kate", 10.0),
-                            Triple(12, "Leo", 5.0),
-                        ),
-                )
+            // Both types available — verify label matches question regardless of which is selected
+            val json = createStatsJsonWithGoals(defaultPointsPlayers, defaultGoalsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
-            val viewModel = createViewModel(customRandom)
+            val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
-            // Assert - first round is points
-            assertEquals("pts", viewModel.statUnitLabel)
-
-            // Act - go to next round (should be goals)
-            viewModel.selectAnswer(viewModel.correctPlayer!!.id)
-            viewModel.nextRound()
-
-            // Assert
-            assertEquals("g", viewModel.statUnitLabel)
+            repeat(4) {
+                val expectedLabel = if ("points" in viewModel.questionText) "pts" else "g"
+                assertEquals(
+                    "statUnitLabel must match questionText, but got label=${viewModel.statUnitLabel} for question='${viewModel.questionText}'",
+                    expectedLabel,
+                    viewModel.statUnitLabel,
+                )
+                viewModel.selectAnswer(viewModel.correctPlayer!!.id)
+                viewModel.nextRound()
+            }
         }
 
     // -----------------------------------------------------------------------
-    // Story 2 (continued): No-tie invariant for goals questions
+    // No-tie invariant for goals questions
     // -----------------------------------------------------------------------
 
     @Test
     fun `goals choices have distinct values when goals data has duplicates`() =
         runTest(testDispatcher) {
-            // Arrange - force goals question, goals data has duplicate values
-            val seed = generateSequence(0) { it + 1 }.first { Random(it).nextBoolean() }
+            // Goals only → FORWARDS_GOALS always selected
             val json =
-                createStatsJsonWithGoals(
-                    pointsPlayers =
-                        listOf(
-                            Triple(1, "Alice", 100.0),
-                            Triple(2, "Bob", 80.0),
-                            Triple(3, "Carol", 60.0),
-                            Triple(13, "Mia", 40.0),
-                            Triple(14, "Nick", 20.0),
-                            Triple(15, "Olivia", 10.0),
-                        ),
-                    goalsPlayers =
-                        listOf(
-                            Triple(4, "Dave", 50.0),
-                            Triple(5, "Eve", 50.0),
-                            Triple(6, "Frank", 30.0),
-                            Triple(7, "Grace", 30.0),
-                            Triple(8, "Hank", 20.0),
-                            Triple(9, "Irene", 15.0),
-                            Triple(10, "Jim", 10.0),
-                            Triple(11, "Kelly", 5.0),
-                            Triple(12, "Larry", 3.0),
-                            Triple(16, "Pete", 1.0),
-                        ),
+                createGoalsOnlyJson(
+                    listOf(
+                        Triple(4, "Dave", 50.0),
+                        Triple(5, "Eve", 50.0),
+                        Triple(6, "Frank", 30.0),
+                        Triple(7, "Grace", 30.0),
+                        Triple(8, "Hank", 20.0),
+                        Triple(9, "Irene", 15.0),
+                        Triple(10, "Jim", 10.0),
+                        Triple(11, "Kelly", 5.0),
+                        Triple(12, "Larry", 3.0),
+                        Triple(16, "Pete", 1.0),
+                    )
                 )
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
-            val viewModel = createViewModel(Random(seed))
+            val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
-            // Assert
             val values = viewModel.choices.map { it.value }
             assertEquals(
                 "All goals choice values must be unique, but got: $values",
@@ -552,109 +359,63 @@ class GoalsQuestionTypeTest {
         }
 
     // -----------------------------------------------------------------------
-    // Story 3: Independent Per-Type Used-Player Pools
+    // Independent Per-Type Used-Player Pools
     // -----------------------------------------------------------------------
 
     @Test
-    fun `player from points question CAN appear in goals question`() =
+    fun `player from forwards points question CAN appear in forwards goals question`() =
         runTest(testDispatcher) {
-            // Arrange - points first, then goals
-            // Players 1, 2, 3 appear in both leaderboards' top 50%
-            val boolSequence = listOf(false, true).iterator()
-            val customRandom =
-                object : Random() {
-                    private val delegate = Random(42)
-
-                    override fun nextBits(bitCount: Int): Int = delegate.nextBits(bitCount)
-
-                    override fun nextBoolean(): Boolean = boolSequence.next()
-                }
-            val json =
-                createStatsJsonWithGoals(
-                    pointsPlayers =
-                        listOf(
-                            Triple(1, "Alice", 100.0),
-                            Triple(2, "Bob", 80.0),
-                            Triple(3, "Carol", 60.0),
-                            Triple(7, "Grace", 40.0),
-                            Triple(8, "Hank", 20.0),
-                            Triple(9, "Ivy", 10.0),
-                        ),
-                    goalsPlayers =
-                        listOf(
-                            Triple(1, "Alice", 50.0),
-                            Triple(2, "Bob", 40.0),
-                            Triple(3, "Carol", 30.0),
-                            Triple(10, "Jack", 20.0),
-                            Triple(11, "Kate", 10.0),
-                            Triple(12, "Leo", 5.0),
-                        ),
+            // Players 1-3 appear in both leaderboards. Round 1=points, round 2=goals.
+            val sharedPlayers =
+                listOf(
+                    Triple(1, "Alice", 100.0),
+                    Triple(2, "Bob", 80.0),
+                    Triple(3, "Carol", 60.0),
+                    Triple(7, "Grace", 40.0),
+                    Triple(8, "Hank", 20.0),
+                    Triple(9, "Ivy", 10.0),
                 )
+            val json = createStatsJsonWithGoals(sharedPlayers, sharedPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
-            val viewModel = createViewModel(customRandom)
+            // Round 1 = FORWARDS_POINTS (index 0), Round 2 = FORWARDS_GOALS (index 1)
+            val viewModel = createViewModel(makeTypeControlledRandom(listOf(0, 1)))
             advanceUntilIdle()
 
-            // Round 1 (points) - uses players from points pool
             val pointsChoiceIds = viewModel.choices.map { it.id }.toSet()
             assertEquals(3, pointsChoiceIds.size)
 
-            // Act - go to next round (goals)
             viewModel.selectAnswer(viewModel.correctPlayer!!.id)
             viewModel.nextRound()
 
-            // Assert - goals round should succeed with 3 choices;
-            // cross-type reuse is allowed since pools are independent
+            // Goals round should succeed — cross-type reuse is allowed
             val goalsChoiceIds = viewModel.choices.map { it.id }.toSet()
             assertEquals(3, goalsChoiceIds.size)
         }
 
     @Test
-    fun `player from goals question CAN appear in points question`() =
+    fun `player from forwards goals question CAN appear in forwards points question`() =
         runTest(testDispatcher) {
-            // Arrange - goals first, then points
-            val boolSequence = listOf(true, false).iterator()
-            val customRandom =
-                object : Random() {
-                    private val delegate = Random(42)
-
-                    override fun nextBits(bitCount: Int): Int = delegate.nextBits(bitCount)
-
-                    override fun nextBoolean(): Boolean = boolSequence.next()
-                }
-            val json =
-                createStatsJsonWithGoals(
-                    pointsPlayers =
-                        listOf(
-                            Triple(1, "Alice", 100.0),
-                            Triple(2, "Bob", 80.0),
-                            Triple(3, "Carol", 60.0),
-                            Triple(7, "Grace", 40.0),
-                            Triple(8, "Hank", 20.0),
-                            Triple(9, "Ivy", 10.0),
-                        ),
-                    goalsPlayers =
-                        listOf(
-                            Triple(1, "Alice", 50.0),
-                            Triple(2, "Bob", 40.0),
-                            Triple(3, "Carol", 30.0),
-                            Triple(10, "Jack", 20.0),
-                            Triple(11, "Kate", 10.0),
-                            Triple(12, "Leo", 5.0),
-                        ),
+            val sharedPlayers =
+                listOf(
+                    Triple(1, "Alice", 100.0),
+                    Triple(2, "Bob", 80.0),
+                    Triple(3, "Carol", 60.0),
+                    Triple(7, "Grace", 40.0),
+                    Triple(8, "Hank", 20.0),
+                    Triple(9, "Ivy", 10.0),
                 )
+            val json = createStatsJsonWithGoals(sharedPlayers, sharedPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
-            val viewModel = createViewModel(customRandom)
+            // Round 1 = FORWARDS_GOALS (index 1), Round 2 = FORWARDS_POINTS (index 0)
+            val viewModel = createViewModel(makeTypeControlledRandom(listOf(1, 0)))
             advanceUntilIdle()
 
-            // Round 1 (goals)
             val goalsChoiceIds = viewModel.choices.map { it.id }.toSet()
             assertEquals(3, goalsChoiceIds.size)
 
-            // Act - go to next round (points)
             viewModel.selectAnswer(viewModel.correctPlayer!!.id)
             viewModel.nextRound()
 
-            // Assert - points round should succeed; cross-type reuse is allowed
             val pointsChoiceIds = viewModel.choices.map { it.id }.toSet()
             assertEquals(3, pointsChoiceIds.size)
         }
@@ -662,166 +423,74 @@ class GoalsQuestionTypeTest {
     @Test
     fun `per-type used sets track players independently`() =
         runTest(testDispatcher) {
-            // Arrange - points first, then goals
-            val boolSequence = listOf(false, true).iterator()
-            val customRandom =
-                object : Random() {
-                    private val delegate = Random(42)
-
-                    override fun nextBits(bitCount: Int): Int = delegate.nextBits(bitCount)
-
-                    override fun nextBoolean(): Boolean = boolSequence.next()
-                }
-            val json =
-                createStatsJsonWithGoals(
-                    pointsPlayers =
-                        listOf(
-                            Triple(1, "Alice", 100.0),
-                            Triple(2, "Bob", 80.0),
-                            Triple(3, "Carol", 60.0),
-                            Triple(7, "Grace", 40.0),
-                            Triple(8, "Hank", 20.0),
-                            Triple(9, "Ivy", 10.0),
-                        ),
-                    goalsPlayers =
-                        listOf(
-                            Triple(4, "Dave", 50.0),
-                            Triple(5, "Eve", 40.0),
-                            Triple(6, "Frank", 30.0),
-                            Triple(10, "Jack", 20.0),
-                            Triple(11, "Kate", 10.0),
-                            Triple(12, "Leo", 5.0),
-                        ),
-                )
+            val json = createStatsJsonWithGoals(defaultPointsPlayers, defaultGoalsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
-            val viewModel = createViewModel(customRandom)
+            // Round 1 = FORWARDS_POINTS (0), Round 2 = FORWARDS_GOALS (1)
+            val viewModel = createViewModel(makeTypeControlledRandom(listOf(0, 1)))
             advanceUntilIdle()
 
-            // After round 1 (points): pointsUsedIds has 3, goalsUsedIds is empty
-            assertEquals(3, viewModel.pointsUsedIds.size)
-            assertEquals(0, viewModel.goalsUsedIds.size)
+            // After round 1 (points): FORWARDS_POINTS used set has 3, FORWARDS_GOALS is empty
+            assertEquals(3, (viewModel.usedIds[QuestionType.FORWARDS_POINTS] ?: emptySet()).size)
+            assertEquals(0, (viewModel.usedIds[QuestionType.FORWARDS_GOALS] ?: emptySet()).size)
 
-            // Act - go to next round (goals)
             viewModel.selectAnswer(viewModel.correctPlayer!!.id)
             viewModel.nextRound()
 
-            // Assert - both used sets are independent
-            assertEquals(3, viewModel.pointsUsedIds.size)
-            assertEquals(3, viewModel.goalsUsedIds.size)
+            // After round 2 (goals): both used sets are independent
+            assertEquals(3, (viewModel.usedIds[QuestionType.FORWARDS_POINTS] ?: emptySet()).size)
+            assertEquals(3, (viewModel.usedIds[QuestionType.FORWARDS_GOALS] ?: emptySet()).size)
         }
 
     @Test
     fun `per-type pool reset when type is exhausted`() =
         runTest(testDispatcher) {
-            // Arrange - 6 players per type (pool of 3 each).
-            // Sequence: points, goals, then points again. Third round exhausts points, triggers
-            // points-only reset. Goals used set should be unaffected.
-            // Use a custom Random that returns [false, true, false] for nextBoolean()
-            // to control question type selection regardless of shuffled() consuming random values.
-            val boolSequence = listOf(false, true, false).iterator()
-            val customRandom =
-                object : Random() {
-                    private val delegate = Random(42)
-
-                    override fun nextBits(bitCount: Int): Int = delegate.nextBits(bitCount)
-
-                    override fun nextBoolean(): Boolean = boolSequence.next()
-                }
-            val json =
-                createStatsJsonWithGoals(
-                    pointsPlayers =
-                        listOf(
-                            Triple(1, "Alice", 100.0),
-                            Triple(2, "Bob", 80.0),
-                            Triple(3, "Carol", 60.0),
-                            Triple(7, "Grace", 40.0),
-                            Triple(8, "Hank", 20.0),
-                            Triple(9, "Ivy", 10.0),
-                        ),
-                    goalsPlayers =
-                        listOf(
-                            Triple(4, "Dave", 50.0),
-                            Triple(5, "Eve", 40.0),
-                            Triple(6, "Frank", 30.0),
-                            Triple(10, "Jack", 20.0),
-                            Triple(11, "Kate", 10.0),
-                            Triple(12, "Leo", 5.0),
-                        ),
-                )
+            // Pool of 3 per type. Round 1=points, round 2=goals, round 3=points (exhausted →
+            // reset).
+            val json = createStatsJsonWithGoals(defaultPointsPlayers, defaultGoalsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
-            val viewModel = createViewModel(customRandom)
+            val viewModel = createViewModel(makeTypeControlledRandom(listOf(0, 1, 0)))
             advanceUntilIdle()
 
-            // Round 1 (points) - uses all 3 points pool entries
+            // Round 1 (points)
             assertEquals(3, viewModel.choices.size)
-            val goalsUsedAfterRound1 = viewModel.goalsUsedIds.size
-            assertEquals(0, goalsUsedAfterRound1)
+            val goalsUsedAfterRound1 = viewModel.usedIds[QuestionType.FORWARDS_GOALS] ?: emptySet()
+            assertEquals(0, goalsUsedAfterRound1.size)
 
             viewModel.selectAnswer(viewModel.correctPlayer!!.id)
             viewModel.nextRound()
 
-            // Round 2 (goals) - uses 3 goals pool entries
+            // Round 2 (goals)
             assertEquals(3, viewModel.choices.size)
-            val goalsUsedAfterRound2 = viewModel.goalsUsedIds.toSet()
+            val goalsUsedAfterRound2 = viewModel.usedIds[QuestionType.FORWARDS_GOALS] ?: emptySet()
             assertEquals(3, goalsUsedAfterRound2.size)
 
             viewModel.selectAnswer(viewModel.correctPlayer!!.id)
             viewModel.nextRound()
 
-            // Round 3 (points again) - points pool exhausted, resets points only
+            // Round 3 (points again) — pool exhausted, only points resets
             assertEquals(3, viewModel.choices.size)
-            // Goals used set should still contain its 3 entries from round 2
+            // Goals used set should still contain its entries from round 2
+            val goalsUsedAfterRound3 = viewModel.usedIds[QuestionType.FORWARDS_GOALS] ?: emptySet()
             assertTrue(
                 "Goals used set should NOT be reset when points resets",
-                viewModel.goalsUsedIds.containsAll(goalsUsedAfterRound2),
+                goalsUsedAfterRound3.containsAll(goalsUsedAfterRound2),
             )
         }
 
     @Test
     fun `goals pool resets independently allowing round to proceed`() =
         runTest(testDispatcher) {
-            // Arrange - force two consecutive goals rounds.
-            // Goals pool has 3 entries (from 6 players). After round 1 exhausts it,
-            // round 2 should trigger a goals-only reset.
-            val alwaysGoalsRandom =
-                object : Random() {
-                    private val delegate = Random(42)
-
-                    override fun nextBits(bitCount: Int): Int = delegate.nextBits(bitCount)
-
-                    override fun nextBoolean(): Boolean = true // always goals
-                }
-            val json =
-                createStatsJsonWithGoals(
-                    pointsPlayers =
-                        listOf(
-                            Triple(1, "Alice", 100.0),
-                            Triple(2, "Bob", 80.0),
-                            Triple(3, "Carol", 60.0),
-                            Triple(7, "Grace", 40.0),
-                            Triple(8, "Hank", 20.0),
-                            Triple(9, "Ivy", 10.0),
-                        ),
-                    goalsPlayers =
-                        listOf(
-                            Triple(4, "Dave", 50.0),
-                            Triple(5, "Eve", 40.0),
-                            Triple(6, "Frank", 30.0),
-                            Triple(10, "Jack", 20.0),
-                            Triple(11, "Kate", 10.0),
-                            Triple(12, "Leo", 5.0),
-                        ),
-                )
+            // Force two consecutive goals rounds. After round 1 exhausts pool (3 players),
+            // round 2 should trigger a goals-only reset and still produce 3 choices.
+            val json = createGoalsOnlyJson(defaultGoalsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
-            val viewModel = createViewModel(alwaysGoalsRandom)
+            val viewModel = createViewModel(Random(42)) // single type, always FORWARDS_GOALS
             advanceUntilIdle()
 
-            // Round 1 (goals) - uses all 3 goals pool entries
             assertEquals(3, viewModel.choices.size)
             viewModel.selectAnswer(viewModel.correctPlayer!!.id)
             viewModel.nextRound()
 
-            // Round 2 (goals again) - goals exhausted, per-type reset fires
             assertEquals(
                 "Per-type reset should allow goals round to proceed",
                 3,
@@ -832,47 +501,17 @@ class GoalsQuestionTypeTest {
     @Test
     fun `after per-type reset previously seen players reappear`() =
         runTest(testDispatcher) {
-            // Arrange - force two consecutive goals rounds with pool of 3
-            val alwaysGoalsRandom =
-                object : Random() {
-                    private val delegate = Random(42)
-
-                    override fun nextBits(bitCount: Int): Int = delegate.nextBits(bitCount)
-
-                    override fun nextBoolean(): Boolean = true // always goals
-                }
-            val json =
-                createStatsJsonWithGoals(
-                    pointsPlayers =
-                        listOf(
-                            Triple(1, "Alice", 100.0),
-                            Triple(2, "Bob", 80.0),
-                            Triple(3, "Carol", 60.0),
-                            Triple(7, "Grace", 40.0),
-                            Triple(8, "Hank", 20.0),
-                            Triple(9, "Ivy", 10.0),
-                        ),
-                    goalsPlayers =
-                        listOf(
-                            Triple(4, "Dave", 50.0),
-                            Triple(5, "Eve", 40.0),
-                            Triple(6, "Frank", 30.0),
-                            Triple(10, "Jack", 20.0),
-                            Triple(11, "Kate", 10.0),
-                            Triple(12, "Leo", 5.0),
-                        ),
-                )
+            val json = createGoalsOnlyJson(defaultGoalsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
-            val viewModel = createViewModel(alwaysGoalsRandom)
+            val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
-            // Round 1 (goals) - uses all 3 goals pool entries
             val round1Ids = viewModel.choices.map { it.id }.toSet()
             assertEquals(3, round1Ids.size)
+
             viewModel.selectAnswer(viewModel.correctPlayer!!.id)
             viewModel.nextRound()
 
-            // Round 2 (goals) - after reset, must reuse players from round 1
             val round2Ids = viewModel.choices.map { it.id }.toSet()
             val overlap = round1Ids.intersect(round2Ids)
             assertTrue(

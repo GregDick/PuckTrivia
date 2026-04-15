@@ -38,37 +38,40 @@ class TriviaViewModelTest {
         mockWebServer.shutdown()
     }
 
-    private fun createStatsJson(players: List<Triple<Int, String, Double>>): String {
+    /**
+     * Creates a JSON response with 6 forwards (position "C") and 6 defenders (position "D") under
+     * the "points" key. Each position group yields a top-50% pool of 3, sufficient for one round.
+     */
+    private fun createDefaultStatsJson(): String {
+        val forwards =
+            listOf(
+                Triple(1, "Alice", 100.0),
+                Triple(2, "Bob", 80.0),
+                Triple(3, "Carol", 60.0),
+                Triple(4, "Dave", 40.0),
+                Triple(5, "Eve", 20.0),
+                Triple(6, "Frank", 10.0),
+            )
+        val defenders =
+            listOf(
+                Triple(11, "Greg", 90.0),
+                Triple(12, "Hana", 70.0),
+                Triple(13, "Ivan", 50.0),
+                Triple(14, "Jess", 30.0),
+                Triple(15, "Karl", 15.0),
+                Triple(16, "Lena", 5.0),
+            )
+        fun toJson(id: Int, name: String, value: Double, position: String) =
+            """{"id":$id,"firstName":{"default":"$name"},"lastName":{"default":"Player"},"sweaterNumber":${id + 10},"teamAbbrev":"TST","position":"$position","value":$value}"""
         val playersJson =
-            players.joinToString(",") { (id, name, value) ->
-                """
-            {
-                "id": $id,
-                "firstName": {"default": "$name"},
-                "lastName": {"default": "Player"},
-                "sweaterNumber": ${id + 10},
-                "teamAbbrev": "TST",
-                "position": "C",
-                "value": $value
-            }
-            """
-                    .trimIndent()
-            }
-        return """{"points": [$playersJson]}"""
+            (forwards.map { (id, name, v) -> toJson(id, name, v, "C") } +
+                    defenders.map { (id, name, v) -> toJson(id, name, v, "D") })
+                .joinToString(",")
+        return """{"points":[$playersJson]}"""
     }
 
     private fun enqueueDefaultResponse() {
-        val json =
-            createStatsJson(
-                listOf(
-                    Triple(1, "Alice", 100.0),
-                    Triple(2, "Bob", 80.0),
-                    Triple(3, "Carol", 60.0),
-                    Triple(4, "Dave", 40.0),
-                    Triple(5, "Eve", 20.0),
-                )
-            )
-        mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
+        mockWebServer.enqueue(MockResponse().setBody(createDefaultStatsJson()).setResponseCode(200))
     }
 
     private fun createViewModel(): TriviaViewModel {
@@ -106,15 +109,12 @@ class TriviaViewModelTest {
             val viewModel = createViewModel()
             advanceUntilIdle()
 
-            // First get a correct answer to have a non-zero score
             val correctId = viewModel.correctPlayer!!.id
             viewModel.selectAnswer(correctId)
             assertEquals(100, viewModel.score)
 
-            // Next round
             viewModel.nextRound()
 
-            // Select a wrong answer — score should remain 100
             val wrongId = viewModel.choices.first { it.id != viewModel.correctPlayer!!.id }.id
             viewModel.selectAnswer(wrongId)
 
@@ -128,16 +128,13 @@ class TriviaViewModelTest {
             val viewModel = createViewModel()
             advanceUntilIdle()
 
-            // Round 1: correct
             viewModel.selectAnswer(viewModel.correctPlayer!!.id)
             assertEquals(100, viewModel.score)
 
-            // Round 2: correct
             viewModel.nextRound()
             viewModel.selectAnswer(viewModel.correctPlayer!!.id)
             assertEquals(200, viewModel.score)
 
-            // Round 3: correct
             viewModel.nextRound()
             viewModel.selectAnswer(viewModel.correctPlayer!!.id)
             assertEquals(300, viewModel.score)
@@ -150,17 +147,14 @@ class TriviaViewModelTest {
             val viewModel = createViewModel()
             advanceUntilIdle()
 
-            // Correct answer
             viewModel.selectAnswer(viewModel.correctPlayer!!.id)
             assertEquals(100, viewModel.score)
 
-            // Wrong answer — score stays at 100
             viewModel.nextRound()
             val wrongId = viewModel.choices.first { it.id != viewModel.correctPlayer!!.id }.id
             viewModel.selectAnswer(wrongId)
             assertEquals(100, viewModel.score)
 
-            // Correct answer again — score becomes 200
             viewModel.nextRound()
             viewModel.selectAnswer(viewModel.correctPlayer!!.id)
             assertEquals(200, viewModel.score)
