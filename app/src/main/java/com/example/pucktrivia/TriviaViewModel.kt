@@ -79,6 +79,9 @@ constructor(
     var gameOver by mutableStateOf(false)
         private set
 
+    var fatalError by mutableStateOf(false)
+        private set
+
     val answered: Boolean
         get() = selectedPlayerId != null
 
@@ -133,6 +136,7 @@ constructor(
         correctAnswered = 0
         selectedPlayerId = null
         gameOver = false
+        fatalError = false
         usedIds = emptyMap()
         prepareRound()
     }
@@ -150,13 +154,14 @@ constructor(
     }
 
     private fun prepareRound() {
-        val availableTypes = pools.keys.filter { pools[it]!!.distinctBy { p -> p.value }.size >= 3 }
-        if (availableTypes.isEmpty()) return
+        if (pools.isEmpty()) {
+            Log.e("TriviaViewModel", "No pools available — cannot prepare round")
+            fatalError = true
+            return
+        }
 
-        val type = availableTypes[random.nextInt(availableTypes.size)]
-        questionText = type.questionText
-        statUnitLabel = type.unitLabel
-
+        val types = pools.keys.toList()
+        val type = types[random.nextInt(types.size)]
         val pool = pools[type]!!
         var currentUsed = usedIds[type] ?: emptySet()
 
@@ -165,7 +170,18 @@ constructor(
             currentUsed = emptySet()
             picked = greedyPick(pool, currentUsed)
         }
+        if (picked.size < 3) {
+            Log.e(
+                "TriviaViewModel",
+                "Pool for $type cannot produce 3 distinct choices even after reset " +
+                    "(poolSize=${pool.size}, distinctValues=${pool.distinctBy { it.value }.size})",
+            )
+            fatalError = true
+            return
+        }
 
+        questionText = type.questionText
+        statUnitLabel = type.unitLabel
         usedIds = usedIds + (type to (currentUsed + picked.map { it.id }))
         choices = picked
         correctPlayer = picked.maxByOrNull { it.value }

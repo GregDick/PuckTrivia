@@ -62,12 +62,13 @@ class TriviaNoTieTest {
     @Test
     fun `all choices must have distinct point values when pool contains multi-way tie`() =
         runTest(testDispatcher) {
-            // 8 players → pool of 4. Three-way tie at 50 inside the pool; 70 is unique top.
+            // 8 players → pool of 4. Two-way tie at 50 inside the pool; 70 and 60 provide
+            // the 3 distinct values needed for the pool to be viable.
             val json =
                 createStatsJson(
                     listOf(
                         Triple(1, "Alice", 70.0),
-                        Triple(2, "Bob", 50.0),
+                        Triple(2, "Bob", 60.0),
                         Triple(3, "Carol", 50.0),
                         Triple(4, "Dave", 50.0),
                         Triple(5, "Eve", 40.0),
