@@ -170,6 +170,8 @@ constructor(
             currentUsed = emptySet()
             picked = greedyPick(pool, currentUsed)
         }
+        // Pool is structurally unviable (too few distinct values even after reset); halt rather
+        // than loop or silently fall back to another pool type.
         if (picked.size < 3) {
             Log.e(
                 "TriviaViewModel",
