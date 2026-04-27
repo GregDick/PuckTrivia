@@ -1,11 +1,14 @@
 package com.example.pucktrivia.model
 
 data class SkaterStatLeader(
-    val id: Int,
-    val firstName: String,
-    val lastName: String,
-    val sweaterNumber: Int?,
-    val teamAbbrev: String,
+    override val id: Int,
+    override val firstName: String,
+    override val lastName: String,
+    override val sweaterNumber: Int?,
+    override val teamAbbrev: String,
     val position: String,
-    val value: Double,
-)
+    override val value: Double,
+) : StatLeader {
+    override val displayValue: String
+        get() = value.toInt().toString()
+}
