@@ -136,11 +136,14 @@ class PlayerPoolTest {
         return """{"points":[$pts]}"""
     }
 
-    private fun mockUrl() =
+    private fun skaterMockUrl() =
         mockWebServer.url("/v1/skater-stats-leaders/current?limit=-1").toString()
 
+    private fun goalieMockUrl() =
+        mockWebServer.url("/v1/goalie-stats-leaders/current?limit=-1").toString()
+
     private fun createViewModel(random: Random) =
-        TriviaViewModel(OkHttpClient(), mockUrl(), testDispatcher, random)
+        TriviaViewModel(OkHttpClient(), skaterMockUrl(), goalieMockUrl(), testDispatcher, random)
 
     /**
      * Controls type selection by intercepting random.nextInt(4) calls (type selection). Pool size
@@ -231,6 +234,7 @@ class PlayerPoolTest {
     fun `forwards points pool contains top 50% of forwards from points leaderboard`() =
         runTest(testDispatcher) {
             mockWebServer.enqueue(MockResponse().setBody(createMixedJson()).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
@@ -244,6 +248,7 @@ class PlayerPoolTest {
     fun `defenders points pool contains top 50% of defenders from points leaderboard`() =
         runTest(testDispatcher) {
             mockWebServer.enqueue(MockResponse().setBody(createMixedJson()).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
@@ -257,6 +262,7 @@ class PlayerPoolTest {
     fun `forwards goals pool contains top 50% of forwards from goals leaderboard`() =
         runTest(testDispatcher) {
             mockWebServer.enqueue(MockResponse().setBody(createMixedJson()).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
@@ -270,6 +276,7 @@ class PlayerPoolTest {
     fun `defenders goals pool contains top 50% of defenders from goals leaderboard`() =
         runTest(testDispatcher) {
             mockWebServer.enqueue(MockResponse().setBody(createMixedJson()).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
@@ -296,6 +303,7 @@ class PlayerPoolTest {
             mockWebServer.enqueue(
                 MockResponse().setBody("""{"points":[$pts]}""").setResponseCode(200)
             )
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
@@ -306,12 +314,12 @@ class PlayerPoolTest {
             // Forwards pool contains only forwards
             assertTrue(
                 "Forwards pool should contain only forwards",
-                fwdPool.all { it.position == "C" },
+                fwdPool.all { (it as SkaterStatLeader).position == "C" },
             )
             // Defenders pool contains only defenders
             assertTrue(
                 "Defenders pool should contain only defenders",
-                defPool.all { it.position == "D" },
+                defPool.all { (it as SkaterStatLeader).position == "D" },
             )
         }
 
@@ -327,6 +335,7 @@ class PlayerPoolTest {
                     .setBody("""{"goals":[${gls.joinToString(",")}]}""")
                     .setResponseCode(200)
             )
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
@@ -359,6 +368,7 @@ class PlayerPoolTest {
             mockWebServer.enqueue(
                 MockResponse().setBody("""{"points":[$pts]}""").setResponseCode(200)
             )
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
@@ -381,6 +391,7 @@ class PlayerPoolTest {
                     .setBody("""{"points":[${pts.joinToString(",")}]}""")
                     .setResponseCode(200)
             )
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
@@ -398,6 +409,7 @@ class PlayerPoolTest {
             mockWebServer.enqueue(
                 MockResponse().setBody(createPointsOnlyMixedJson()).setResponseCode(200)
             )
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
@@ -458,6 +470,7 @@ class PlayerPoolTest {
             mockWebServer.enqueue(
                 MockResponse().setBody("""{"points":[$pts],"goals":[$gls]}""").setResponseCode(200)
             )
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
@@ -478,6 +491,7 @@ class PlayerPoolTest {
     fun `choices in a defenders question are all defenders`() =
         runTest(testDispatcher) {
             mockWebServer.enqueue(MockResponse().setBody(createMixedJson()).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             // Force DEFENDERS_POINTS (index 0)
             val viewModel = createViewModel(makeTypeControlledRandom(listOf(0)))
             advanceUntilIdle()
@@ -488,7 +502,7 @@ class PlayerPoolTest {
             )
             assertTrue(
                 "All choices in a defenders question must be defenders",
-                viewModel.choices.all { it.position == "D" },
+                viewModel.choices.all { (it as SkaterStatLeader).position == "D" },
             )
         }
 
@@ -496,6 +510,7 @@ class PlayerPoolTest {
     fun `choices in a forwards question are all forwards`() =
         runTest(testDispatcher) {
             mockWebServer.enqueue(MockResponse().setBody(createMixedJson()).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             // Force FORWARDS_POINTS (index 1)
             val viewModel = createViewModel(makeTypeControlledRandom(listOf(1)))
             advanceUntilIdle()
@@ -506,7 +521,7 @@ class PlayerPoolTest {
             )
             assertTrue(
                 "All choices in a forwards question must be forwards",
-                viewModel.choices.all { it.position == "C" },
+                viewModel.choices.all { (it as SkaterStatLeader).position == "C" },
             )
         }
 
@@ -535,6 +550,7 @@ class PlayerPoolTest {
             mockWebServer.enqueue(
                 MockResponse().setBody("""{"points":[$pts]}""").setResponseCode(200)
             )
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             // Force FORWARDS_POINTS (index 0, since only 2 types available with no goals key)
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
@@ -552,6 +568,7 @@ class PlayerPoolTest {
     fun `correct answer is highest value among the three choices`() =
         runTest(testDispatcher) {
             mockWebServer.enqueue(MockResponse().setBody(createMixedJson()).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
@@ -587,6 +604,7 @@ class PlayerPoolTest {
             mockWebServer.enqueue(
                 MockResponse().setBody("""{"points":[$pts]}""").setResponseCode(200)
             )
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
@@ -612,6 +630,7 @@ class PlayerPoolTest {
             mockWebServer.enqueue(
                 MockResponse().setBody("""{"points":[$pts]}""").setResponseCode(200)
             )
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
@@ -663,6 +682,7 @@ class PlayerPoolTest {
             mockWebServer.enqueue(
                 MockResponse().setBody("""{"points":[$pts],"goals":[$gls]}""").setResponseCode(200)
             )
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             // Round 1 = FORWARDS_POINTS (1), Round 2 = FORWARDS_GOALS (3)
             val viewModel = createViewModel(makeTypeControlledRandom(listOf(1, 3)))
             advanceUntilIdle()
@@ -712,6 +732,7 @@ class PlayerPoolTest {
                     )
                     .setResponseCode(200)
             )
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             // Both rounds = FORWARDS_GOALS (index 3, since 4 types available)
             val viewModel = createViewModel(makeTypeControlledRandom(listOf(3, 3)))
             advanceUntilIdle()
@@ -734,6 +755,7 @@ class PlayerPoolTest {
     fun `per-type used sets are independent across all four types`() =
         runTest(testDispatcher) {
             mockWebServer.enqueue(MockResponse().setBody(createMixedJson()).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             // Round 1 = FORWARDS_POINTS (1), Round 2 = FORWARDS_GOALS (3)
             val viewModel = createViewModel(makeTypeControlledRandom(listOf(1, 3)))
             advanceUntilIdle()
@@ -762,6 +784,7 @@ class PlayerPoolTest {
     fun `forwards goals pool resets independently without resetting other types`() =
         runTest(testDispatcher) {
             mockWebServer.enqueue(MockResponse().setBody(createMixedJson()).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             // Sequence: FORWARDS_POINTS(1), FORWARDS_GOALS(3), FORWARDS_GOALS(3) again (exhausted)
             val viewModel = createViewModel(makeTypeControlledRandom(listOf(1, 3, 3)))
             advanceUntilIdle()
@@ -792,6 +815,7 @@ class PlayerPoolTest {
     fun `after per-type reset previously seen players may reappear in that type`() =
         runTest(testDispatcher) {
             mockWebServer.enqueue(MockResponse().setBody(createMixedJson()).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             // Two consecutive FORWARDS_GOALS (3) rounds — pool of 3 exhausted after round 1
             val viewModel = createViewModel(makeTypeControlledRandom(listOf(3, 3)))
             advanceUntilIdle()
@@ -815,6 +839,7 @@ class PlayerPoolTest {
     fun `resetGame clears all four used sets`() =
         runTest(testDispatcher) {
             mockWebServer.enqueue(MockResponse().setBody(createMixedJson()).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             // Play two rounds of different types to accumulate used IDs
             val viewModel = createViewModel(makeTypeControlledRandom(listOf(0, 1, 2, 3)))
             advanceUntilIdle()

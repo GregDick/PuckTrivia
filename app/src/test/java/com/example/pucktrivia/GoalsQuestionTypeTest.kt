@@ -79,12 +79,14 @@ class GoalsQuestionTypeTest {
         return """{"goals":[$playersJson]}"""
     }
 
-    private fun mockUrl(): String =
+    private fun skaterMockUrl(): String =
         mockWebServer.url("/v1/skater-stats-leaders/current?limit=-1").toString()
 
-    private fun createViewModel(random: Random): TriviaViewModel {
-        return TriviaViewModel(OkHttpClient(), mockUrl(), testDispatcher, random)
-    }
+    private fun goalieMockUrl(): String =
+        mockWebServer.url("/v1/goalie-stats-leaders/current?limit=-1").toString()
+
+    private fun createViewModel(random: Random): TriviaViewModel =
+        TriviaViewModel(OkHttpClient(), skaterMockUrl(), goalieMockUrl(), testDispatcher, random)
 
     /**
      * Returns a Random that controls type selection for multi-round tests.
@@ -150,6 +152,7 @@ class GoalsQuestionTypeTest {
         runTest(testDispatcher) {
             val json = createStatsJsonWithGoals(defaultPointsPlayers, defaultGoalsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
@@ -162,6 +165,7 @@ class GoalsQuestionTypeTest {
         runTest(testDispatcher) {
             val json = createStatsJsonWithGoals(defaultPointsPlayers, defaultGoalsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
@@ -189,6 +193,7 @@ class GoalsQuestionTypeTest {
                     )
                 )
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
@@ -205,6 +210,7 @@ class GoalsQuestionTypeTest {
         runTest(testDispatcher) {
             val json = createStatsJsonWithGoals(defaultPointsPlayers, defaultGoalsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(0))
             advanceUntilIdle()
 
@@ -217,6 +223,7 @@ class GoalsQuestionTypeTest {
             // With no goals key, only FORWARDS_POINTS pool exists → always selected
             val json = createPointsOnlyJson(defaultPointsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
@@ -233,6 +240,7 @@ class GoalsQuestionTypeTest {
             // With no points key, only FORWARDS_GOALS pool exists → always selected
             val json = createGoalsOnlyJson(defaultGoalsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
@@ -249,6 +257,7 @@ class GoalsQuestionTypeTest {
             // Points only → FORWARDS_POINTS always selected
             val json = createPointsOnlyJson(defaultPointsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
@@ -265,6 +274,7 @@ class GoalsQuestionTypeTest {
             // Goals only → FORWARDS_GOALS always selected
             val json = createGoalsOnlyJson(defaultGoalsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
@@ -280,6 +290,7 @@ class GoalsQuestionTypeTest {
         runTest(testDispatcher) {
             val json = createGoalsOnlyJson(defaultGoalsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
@@ -292,6 +303,7 @@ class GoalsQuestionTypeTest {
         runTest(testDispatcher) {
             val json = createPointsOnlyJson(defaultPointsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
@@ -308,6 +320,7 @@ class GoalsQuestionTypeTest {
             // Both types available — verify label matches question regardless of which is selected
             val json = createStatsJsonWithGoals(defaultPointsPlayers, defaultGoalsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
@@ -347,6 +360,7 @@ class GoalsQuestionTypeTest {
                     )
                 )
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 
@@ -377,6 +391,7 @@ class GoalsQuestionTypeTest {
                 )
             val json = createStatsJsonWithGoals(sharedPlayers, sharedPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             // Round 1 = FORWARDS_POINTS (index 0), Round 2 = FORWARDS_GOALS (index 1)
             val viewModel = createViewModel(makeTypeControlledRandom(listOf(0, 1)))
             advanceUntilIdle()
@@ -406,6 +421,7 @@ class GoalsQuestionTypeTest {
                 )
             val json = createStatsJsonWithGoals(sharedPlayers, sharedPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             // Round 1 = FORWARDS_GOALS (index 1), Round 2 = FORWARDS_POINTS (index 0)
             val viewModel = createViewModel(makeTypeControlledRandom(listOf(1, 0)))
             advanceUntilIdle()
@@ -425,6 +441,7 @@ class GoalsQuestionTypeTest {
         runTest(testDispatcher) {
             val json = createStatsJsonWithGoals(defaultPointsPlayers, defaultGoalsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             // Round 1 = FORWARDS_POINTS (0), Round 2 = FORWARDS_GOALS (1)
             val viewModel = createViewModel(makeTypeControlledRandom(listOf(0, 1)))
             advanceUntilIdle()
@@ -448,6 +465,7 @@ class GoalsQuestionTypeTest {
             // reset).
             val json = createStatsJsonWithGoals(defaultPointsPlayers, defaultGoalsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(makeTypeControlledRandom(listOf(0, 1, 0)))
             advanceUntilIdle()
 
@@ -484,6 +502,7 @@ class GoalsQuestionTypeTest {
             // round 2 should trigger a goals-only reset and still produce 3 choices.
             val json = createGoalsOnlyJson(defaultGoalsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42)) // single type, always FORWARDS_GOALS
             advanceUntilIdle()
 
@@ -503,6 +522,7 @@ class GoalsQuestionTypeTest {
         runTest(testDispatcher) {
             val json = createGoalsOnlyJson(defaultGoalsPlayers)
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
             advanceUntilIdle()
 

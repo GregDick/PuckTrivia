@@ -65,11 +65,13 @@ class LivesSystemTest {
 
     private fun enqueueDefaultResponse() {
         mockWebServer.enqueue(MockResponse().setBody(createStatsJson()).setResponseCode(200))
+        mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
     }
 
     private fun createViewModel(): TriviaViewModel {
-        val url = mockWebServer.url("/v1/skater-stats-leaders/current?limit=-1").toString()
-        return TriviaViewModel(OkHttpClient(), url, testDispatcher)
+        val skaterUrl = mockWebServer.url("/v1/skater-stats-leaders/current?limit=-1").toString()
+        val goalieUrl = mockWebServer.url("/v1/goalie-stats-leaders/current?limit=-1").toString()
+        return TriviaViewModel(OkHttpClient(), skaterUrl, goalieUrl, testDispatcher)
     }
 
     private fun TriviaViewModel.selectWrong() {

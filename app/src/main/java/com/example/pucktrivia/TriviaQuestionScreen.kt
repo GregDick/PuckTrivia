@@ -18,7 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.example.pucktrivia.model.SkaterStatLeader
+import com.example.pucktrivia.model.StatLeader
 
 internal val CorrectGreen = Color(0xFF4CAF50)
 
@@ -29,7 +29,7 @@ fun TriviaQuestionScreen(
     livesColor: Color,
     questionText: String,
     statUnitLabel: String,
-    choices: List<SkaterStatLeader>,
+    choices: List<StatLeader>,
     selectedPlayerId: Int?,
     correctPlayerId: Int,
     answered: Boolean,
