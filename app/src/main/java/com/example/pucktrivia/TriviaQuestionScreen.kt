@@ -114,7 +114,8 @@ fun TriviaQuestionScreen(
                         )
                         if (answered) {
                             Text(
-                                text = "${player.value.toInt()} $statUnitLabel",
+                                text =
+                                    "${player.displayValue}${if (statUnitLabel.isNotEmpty()) " $statUnitLabel" else ""}",
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                         }
