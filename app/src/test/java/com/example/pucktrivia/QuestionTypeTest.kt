@@ -37,14 +37,8 @@ class QuestionTypeTest {
     }
 
     @Test
-    fun `all skater types have poolFraction of 0point5`() {
-        val skaterTypes =
-            listOf(
-                QuestionType.DEFENDERS_POINTS,
-                QuestionType.FORWARDS_POINTS,
-                QuestionType.DEFENDERS_GOALS,
-                QuestionType.FORWARDS_GOALS,
-            )
+    fun `all skater types have poolFraction of point5`() {
+        val skaterTypes = QuestionType.entries.filter { it.positionGroup != null }
         for (type in skaterTypes) {
             assertEquals("$type should have poolFraction 0.5", 0.5, type.poolFraction, 0.001)
         }
@@ -52,13 +46,7 @@ class QuestionTypeTest {
 
     @Test
     fun `all skater types have minWins of 0`() {
-        val skaterTypes =
-            listOf(
-                QuestionType.DEFENDERS_POINTS,
-                QuestionType.FORWARDS_POINTS,
-                QuestionType.DEFENDERS_GOALS,
-                QuestionType.FORWARDS_GOALS,
-            )
+        val skaterTypes = QuestionType.entries.filter { it.positionGroup != null }
         for (type in skaterTypes) {
             assertEquals("$type should have minWins 0", 0, type.minWins)
         }
@@ -66,13 +54,7 @@ class QuestionTypeTest {
 
     @Test
     fun `all skater types have non-null positionGroup`() {
-        val skaterTypes =
-            listOf(
-                QuestionType.DEFENDERS_POINTS,
-                QuestionType.FORWARDS_POINTS,
-                QuestionType.DEFENDERS_GOALS,
-                QuestionType.FORWARDS_GOALS,
-            )
+        val skaterTypes = QuestionType.entries.filter { it.positionGroup != null }
         for (type in skaterTypes) {
             assertNotNull("$type should have non-null positionGroup", type.positionGroup)
         }
