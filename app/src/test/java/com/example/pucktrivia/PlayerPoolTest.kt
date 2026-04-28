@@ -314,12 +314,12 @@ class PlayerPoolTest {
             // Forwards pool contains only forwards
             assertTrue(
                 "Forwards pool should contain only forwards",
-                fwdPool.all { (it as SkaterStatLeader).position == "C" },
+                fwdPool.filterIsInstance<SkaterStatLeader>().all { it.position == "C" },
             )
             // Defenders pool contains only defenders
             assertTrue(
                 "Defenders pool should contain only defenders",
-                defPool.all { (it as SkaterStatLeader).position == "D" },
+                defPool.filterIsInstance<SkaterStatLeader>().all { it.position == "D" },
             )
         }
 
@@ -502,7 +502,7 @@ class PlayerPoolTest {
             )
             assertTrue(
                 "All choices in a defenders question must be defenders",
-                viewModel.choices.all { (it as SkaterStatLeader).position == "D" },
+                viewModel.choices.filterIsInstance<SkaterStatLeader>().all { it.position == "D" },
             )
         }
 
@@ -521,7 +521,7 @@ class PlayerPoolTest {
             )
             assertTrue(
                 "All choices in a forwards question must be forwards",
-                viewModel.choices.all { (it as SkaterStatLeader).position == "C" },
+                viewModel.choices.filterIsInstance<SkaterStatLeader>().all { it.position == "C" },
             )
         }
 
