@@ -21,6 +21,11 @@ object NetworkModule {
     fun provideStatsUrl(): String =
         "https://api-web.nhle.com/v1/skater-stats-leaders/current?limit=-1"
 
+    @Provides
+    @GoalieStatsUrl
+    fun provideGoalieStatsUrl(): String =
+        "https://api-web.nhle.com/v1/goalie-stats-leaders/current?limit=-1"
+
     @Provides @IoDispatcher fun provideIoDispatcher(): CoroutineDispatcher = Dispatchers.IO
 
     @Provides @Singleton fun provideRandom(): Random = Random
