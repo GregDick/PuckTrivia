@@ -16,8 +16,11 @@ import com.example.pucktrivia.model.SkaterStatLeader
 import com.example.pucktrivia.model.StatLeader
 import com.example.pucktrivia.model.positionGroup
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.io.IOException
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -102,8 +105,14 @@ constructor(
     private fun fetchStats() {
         viewModelScope.launch {
             try {
-                val skaterData = fetchSkaterStats()
-                val goalieData = fetchGoalieStats()
+                val skaterData: Map<String, List<SkaterStatLeader>>
+                val goalieData: Map<String, List<GoalieStatLeader>>
+                coroutineScope {
+                    val skaterDeferred = async { fetchSkaterStats() }
+                    val goalieDeferred = async { fetchGoalieStats() }
+                    skaterData = skaterDeferred.await()
+                    goalieData = goalieDeferred.await()
+                }
                 statsData = skaterData
                 goalieStatsData = goalieData
                 buildPools(skaterData, goalieData)
@@ -228,7 +237,8 @@ constructor(
         withContext(ioDispatcher) {
             val request = Request.Builder().url(statsUrl).build()
             val response = client.newCall(request).execute()
-            val json = JSONObject(response.body!!.string())
+            val json =
+                JSONObject(response.body?.string() ?: throw IOException("Empty response body"))
 
             val result = mutableMapOf<String, List<SkaterStatLeader>>()
             for (key in json.keys()) {
@@ -257,7 +267,8 @@ constructor(
         withContext(ioDispatcher) {
             val request = Request.Builder().url(goalieStatsUrl).build()
             val response = client.newCall(request).execute()
-            val json = JSONObject(response.body!!.string())
+            val json =
+                JSONObject(response.body?.string() ?: throw IOException("Empty response body"))
 
             val result = mutableMapOf<String, List<GoalieStatLeader>>()
             for (key in json.keys()) {

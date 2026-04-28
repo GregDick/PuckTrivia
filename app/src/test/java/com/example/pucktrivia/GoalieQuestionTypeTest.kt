@@ -1,6 +1,5 @@
 package com.example.pucktrivia
 
-import com.example.pucktrivia.model.GoalieStatLeader
 import com.example.pucktrivia.model.QuestionType
 import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
@@ -132,15 +131,20 @@ class GoalieQuestionTypeTest {
         }
 
     @Test
-    fun `goalie entries are GoalieStatLeader instances`() =
+    fun `goalieStatsData is populated with GoalieStatLeader entries for each category`() =
         runTest(testDispatcher) {
             val json = createGoalieStatsJson(defaultSavePctg, defaultWins)
             enqueueGoalieOnly(json)
             val viewModel = createViewModel()
             advanceUntilIdle()
 
-            val goalie = viewModel.goalieStatsData["savePctg"]!!.first()
-            assertTrue(goalie is GoalieStatLeader)
+            assertEquals(
+                "goalieStatsData should contain savePctg and wins keys",
+                setOf("savePctg", "wins"),
+                viewModel.goalieStatsData.keys,
+            )
+            assertEquals(5, viewModel.goalieStatsData["savePctg"]!!.size)
+            assertEquals(5, viewModel.goalieStatsData["wins"]!!.size)
         }
 
     @Test
