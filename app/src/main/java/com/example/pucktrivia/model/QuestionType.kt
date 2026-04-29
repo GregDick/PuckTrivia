@@ -2,9 +2,11 @@ package com.example.pucktrivia.model
 
 enum class QuestionType(
     val statKey: String,
-    val positionGroup: PositionGroup,
+    val positionGroup: PositionGroup?,
     val questionText: String,
     val unitLabel: String,
+    val poolFraction: Double = 0.5,
+    val minWins: Int = 0,
 ) {
     DEFENDERS_POINTS(
         statKey = "points",
@@ -29,5 +31,13 @@ enum class QuestionType(
         positionGroup = PositionGroup.FORWARDS,
         questionText = "Which of these forwards currently has the most goals?",
         unitLabel = "g",
+    ),
+    GOALIES_SAVE_PCT(
+        statKey = "savePctg",
+        positionGroup = null,
+        questionText = "Which of these goalies currently has the highest save percentage?",
+        unitLabel = "",
+        poolFraction = 1.0,
+        minWins = 10,
     ),
 }
