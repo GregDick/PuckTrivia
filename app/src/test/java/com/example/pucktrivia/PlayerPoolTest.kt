@@ -1,7 +1,9 @@
 package com.example.pucktrivia
 
+import com.example.pucktrivia.di.StatsUrlProvider
 import com.example.pucktrivia.model.PositionGroup
 import com.example.pucktrivia.model.QuestionType
+import com.example.pucktrivia.model.SeasonMode
 import com.example.pucktrivia.model.SkaterStatLeader
 import com.example.pucktrivia.model.positionGroup
 import kotlin.math.ceil
@@ -136,14 +138,23 @@ class PlayerPoolTest {
         return """{"points":[$pts]}"""
     }
 
-    private fun skaterMockUrl() =
-        mockWebServer.url("/v1/skater-stats-leaders/current?limit=-1").toString()
+    private fun fakeProvider(skaterUrl: String, goalieUrl: String): StatsUrlProvider =
+        object : StatsUrlProvider() {
+            override fun skaterUrl(mode: SeasonMode) = skaterUrl
 
-    private fun goalieMockUrl() =
-        mockWebServer.url("/v1/goalie-stats-leaders/current?limit=-1").toString()
+            override fun goalieUrl(mode: SeasonMode) = goalieUrl
+        }
 
-    private fun createViewModel(random: Random) =
-        TriviaViewModel(OkHttpClient(), skaterMockUrl(), goalieMockUrl(), testDispatcher, random)
+    private fun createViewModel(random: Random): TriviaViewModel {
+        val skaterUrl = mockWebServer.url("/v1/skater-stats-leaders/current?limit=-1").toString()
+        val goalieUrl = mockWebServer.url("/v1/goalie-stats-leaders/current?limit=-1").toString()
+        return TriviaViewModel(
+            OkHttpClient(),
+            fakeProvider(skaterUrl, goalieUrl),
+            testDispatcher,
+            random,
+        )
+    }
 
     /**
      * Controls type selection by intercepting random.nextInt(4) calls (type selection). Pool size

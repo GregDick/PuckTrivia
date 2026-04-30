@@ -1,6 +1,8 @@
 package com.example.pucktrivia
 
+import com.example.pucktrivia.di.StatsUrlProvider
 import com.example.pucktrivia.model.QuestionType
+import com.example.pucktrivia.model.SeasonMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -68,10 +70,17 @@ class LivesSystemTest {
         mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
     }
 
+    private fun fakeProvider(skaterUrl: String, goalieUrl: String): StatsUrlProvider =
+        object : StatsUrlProvider() {
+            override fun skaterUrl(mode: SeasonMode) = skaterUrl
+
+            override fun goalieUrl(mode: SeasonMode) = goalieUrl
+        }
+
     private fun createViewModel(): TriviaViewModel {
         val skaterUrl = mockWebServer.url("/v1/skater-stats-leaders/current?limit=-1").toString()
         val goalieUrl = mockWebServer.url("/v1/goalie-stats-leaders/current?limit=-1").toString()
-        return TriviaViewModel(OkHttpClient(), skaterUrl, goalieUrl, testDispatcher)
+        return TriviaViewModel(OkHttpClient(), fakeProvider(skaterUrl, goalieUrl), testDispatcher)
     }
 
     private fun TriviaViewModel.selectWrong() {

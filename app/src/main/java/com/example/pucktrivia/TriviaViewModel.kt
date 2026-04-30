@@ -7,11 +7,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.pucktrivia.di.GoalieStatsUrl
 import com.example.pucktrivia.di.IoDispatcher
-import com.example.pucktrivia.di.StatsUrl
+import com.example.pucktrivia.di.StatsUrlProvider
 import com.example.pucktrivia.model.GoalieStatLeader
 import com.example.pucktrivia.model.QuestionType
+import com.example.pucktrivia.model.SeasonMode
 import com.example.pucktrivia.model.SkaterStatLeader
 import com.example.pucktrivia.model.StatLeader
 import com.example.pucktrivia.model.positionGroup
@@ -32,8 +32,7 @@ class TriviaViewModel
 @Inject
 constructor(
     private val client: OkHttpClient,
-    @StatsUrl private val statsUrl: String,
-    @GoalieStatsUrl private val goalieStatsUrl: String,
+    private val urlProvider: StatsUrlProvider,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     private val random: kotlin.random.Random = kotlin.random.Random,
 ) : ViewModel() {
@@ -103,13 +102,14 @@ constructor(
     }
 
     private fun fetchStats() {
+        val mode = SeasonMode.RegularSeason
         viewModelScope.launch {
             try {
                 val skaterData: Map<String, List<SkaterStatLeader>>
                 val goalieData: Map<String, List<GoalieStatLeader>>
                 coroutineScope {
-                    val skaterDeferred = async { fetchSkaterStats() }
-                    val goalieDeferred = async { fetchGoalieStats() }
+                    val skaterDeferred = async { fetchSkaterStats(mode) }
+                    val goalieDeferred = async { fetchGoalieStats(mode) }
                     skaterData = skaterDeferred.await()
                     goalieData = goalieDeferred.await()
                 }
@@ -233,9 +233,9 @@ constructor(
         return result
     }
 
-    private suspend fun fetchSkaterStats(): Map<String, List<SkaterStatLeader>> =
+    private suspend fun fetchSkaterStats(mode: SeasonMode): Map<String, List<SkaterStatLeader>> =
         withContext(ioDispatcher) {
-            val request = Request.Builder().url(statsUrl).build()
+            val request = Request.Builder().url(urlProvider.skaterUrl(mode)).build()
             val response = client.newCall(request).execute()
             val json =
                 JSONObject(response.body?.string() ?: throw IOException("Empty response body"))
@@ -263,9 +263,9 @@ constructor(
             result
         }
 
-    private suspend fun fetchGoalieStats(): Map<String, List<GoalieStatLeader>> =
+    private suspend fun fetchGoalieStats(mode: SeasonMode): Map<String, List<GoalieStatLeader>> =
         withContext(ioDispatcher) {
-            val request = Request.Builder().url(goalieStatsUrl).build()
+            val request = Request.Builder().url(urlProvider.goalieUrl(mode)).build()
             val response = client.newCall(request).execute()
             val json =
                 JSONObject(response.body?.string() ?: throw IOException("Empty response body"))

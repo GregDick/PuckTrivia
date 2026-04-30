@@ -1,6 +1,8 @@
 package com.example.pucktrivia
 
+import com.example.pucktrivia.di.StatsUrlProvider
 import com.example.pucktrivia.model.QuestionType
+import com.example.pucktrivia.model.SeasonMode
 import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -79,14 +81,23 @@ class GoalsQuestionTypeTest {
         return """{"goals":[$playersJson]}"""
     }
 
-    private fun skaterMockUrl(): String =
-        mockWebServer.url("/v1/skater-stats-leaders/current?limit=-1").toString()
+    private fun fakeProvider(skaterUrl: String, goalieUrl: String): StatsUrlProvider =
+        object : StatsUrlProvider() {
+            override fun skaterUrl(mode: SeasonMode) = skaterUrl
 
-    private fun goalieMockUrl(): String =
-        mockWebServer.url("/v1/goalie-stats-leaders/current?limit=-1").toString()
+            override fun goalieUrl(mode: SeasonMode) = goalieUrl
+        }
 
-    private fun createViewModel(random: Random): TriviaViewModel =
-        TriviaViewModel(OkHttpClient(), skaterMockUrl(), goalieMockUrl(), testDispatcher, random)
+    private fun createViewModel(random: Random): TriviaViewModel {
+        val skaterUrl = mockWebServer.url("/v1/skater-stats-leaders/current?limit=-1").toString()
+        val goalieUrl = mockWebServer.url("/v1/goalie-stats-leaders/current?limit=-1").toString()
+        return TriviaViewModel(
+            OkHttpClient(),
+            fakeProvider(skaterUrl, goalieUrl),
+            testDispatcher,
+            random,
+        )
+    }
 
     /**
      * Returns a Random that controls type selection for multi-round tests.

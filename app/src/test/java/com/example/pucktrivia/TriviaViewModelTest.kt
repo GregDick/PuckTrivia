@@ -1,5 +1,7 @@
 package com.example.pucktrivia
 
+import com.example.pucktrivia.di.StatsUrlProvider
+import com.example.pucktrivia.model.SeasonMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -75,10 +77,17 @@ class TriviaViewModelTest {
         mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
     }
 
+    private fun fakeProvider(skaterUrl: String, goalieUrl: String): StatsUrlProvider =
+        object : StatsUrlProvider() {
+            override fun skaterUrl(mode: SeasonMode) = skaterUrl
+
+            override fun goalieUrl(mode: SeasonMode) = goalieUrl
+        }
+
     private fun createViewModel(): TriviaViewModel {
         val skaterUrl = mockWebServer.url("/v1/skater-stats-leaders/current?limit=-1").toString()
         val goalieUrl = mockWebServer.url("/v1/goalie-stats-leaders/current?limit=-1").toString()
-        return TriviaViewModel(OkHttpClient(), skaterUrl, goalieUrl, testDispatcher)
+        return TriviaViewModel(OkHttpClient(), fakeProvider(skaterUrl, goalieUrl), testDispatcher)
     }
 
     @Test
@@ -230,5 +239,30 @@ class TriviaViewModelTest {
             assertNotNull(correct)
             val maxValue = viewModel.choices.maxOf { it.value }
             assertEquals(maxValue, correct!!.value, 0.001)
+        }
+
+    @Test
+    fun `fetchStats calls provider with RegularSeason mode`() =
+        runTest(testDispatcher) {
+            enqueueDefaultResponse()
+            val recordedModes = mutableListOf<SeasonMode>()
+            val skaterUrl =
+                mockWebServer.url("/v1/skater-stats-leaders/current?limit=-1").toString()
+            val goalieUrl =
+                mockWebServer.url("/v1/goalie-stats-leaders/current?limit=-1").toString()
+            val recordingProvider =
+                object : StatsUrlProvider() {
+                    override fun skaterUrl(mode: SeasonMode): String {
+                        recordedModes.add(mode)
+                        return skaterUrl
+                    }
+
+                    override fun goalieUrl(mode: SeasonMode): String = goalieUrl
+                }
+            val viewModel = TriviaViewModel(OkHttpClient(), recordingProvider, testDispatcher)
+            advanceUntilIdle()
+
+            assertTrue(recordedModes.isNotEmpty())
+            assertTrue(recordedModes.all { it == SeasonMode.RegularSeason })
         }
 }
