@@ -1,7 +1,6 @@
 package com.example.pucktrivia
 
 import com.example.pucktrivia.di.StatsUrlProvider
-import com.example.pucktrivia.model.QuestionType
 import com.example.pucktrivia.model.SeasonMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -16,6 +15,7 @@ import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -99,6 +99,7 @@ class LivesSystemTest {
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             assertEquals(3, viewModel.lives)
@@ -111,6 +112,7 @@ class LivesSystemTest {
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             viewModel.selectWrong()
@@ -123,6 +125,7 @@ class LivesSystemTest {
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             viewModel.selectWrong()
@@ -139,6 +142,7 @@ class LivesSystemTest {
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             viewModel.selectWrong()
@@ -156,6 +160,7 @@ class LivesSystemTest {
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             viewModel.selectCorrect()
@@ -168,6 +173,7 @@ class LivesSystemTest {
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             repeat(3) {
@@ -185,6 +191,7 @@ class LivesSystemTest {
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             viewModel.selectCorrect()
@@ -203,6 +210,7 @@ class LivesSystemTest {
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             assertEquals(0, viewModel.totalAnswered)
@@ -220,6 +228,7 @@ class LivesSystemTest {
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             assertEquals(0, viewModel.correctAnswered)
@@ -237,6 +246,7 @@ class LivesSystemTest {
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             viewModel.selectCorrect()
@@ -260,6 +270,7 @@ class LivesSystemTest {
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             assertFalse(viewModel.gameOver)
@@ -270,6 +281,7 @@ class LivesSystemTest {
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             viewModel.selectWrong()
@@ -288,6 +300,7 @@ class LivesSystemTest {
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             viewModel.selectWrong()
@@ -309,6 +322,7 @@ class LivesSystemTest {
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             viewModel.selectCorrect()
@@ -330,7 +344,8 @@ class LivesSystemTest {
             assertEquals(0, viewModel.correctAnswered)
             assertFalse(viewModel.gameOver)
             assertFalse(viewModel.answered)
-            assertEquals(3, viewModel.choices.size)
+            assertNull(viewModel.selectedMode)
+            assertTrue(viewModel.choices.isEmpty())
         }
 
     @Test
@@ -338,6 +353,7 @@ class LivesSystemTest {
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             viewModel.selectCorrect()
@@ -347,24 +363,7 @@ class LivesSystemTest {
 
             viewModel.resetGame()
 
-            // After reset, all used sets are empty (prepareRound then populates the selected type)
-            val selectedType =
-                QuestionType.entries.firstOrNull { it.questionText == viewModel.questionText }
-            for (type in QuestionType.entries) {
-                val usedSize = (viewModel.usedIds[type] ?: emptySet()).size
-                if (type == selectedType) {
-                    assertEquals(
-                        "After resetGame, selected type's usedIds should contain exactly the new round's 3 choices",
-                        3,
-                        usedSize,
-                    )
-                } else {
-                    assertEquals(
-                        "After resetGame, non-selected type $type should have empty usedIds",
-                        0,
-                        usedSize,
-                    )
-                }
-            }
+            // resetGame() returns to Start Screen — all used sets are empty, no round prepared
+            assertTrue("All usedIds should be empty after resetGame", viewModel.usedIds.isEmpty())
         }
 }

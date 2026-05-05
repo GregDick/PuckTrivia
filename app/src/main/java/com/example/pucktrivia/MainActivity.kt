@@ -34,6 +34,12 @@ class MainActivity : ComponentActivity() {
             PuckTriviaTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     when {
+                        viewModel.selectedMode == null -> {
+                            StartScreen(
+                                onModeSelected = viewModel::startGame,
+                                modifier = Modifier.padding(innerPadding),
+                            )
+                        }
                         viewModel.isLoading -> {
                             Box(
                                 modifier = Modifier.fillMaxSize().padding(innerPadding),
@@ -99,6 +105,7 @@ class MainActivity : ComponentActivity() {
                                 score = viewModel.score,
                                 lives = viewModel.lives,
                                 livesColor = livesColor,
+                                seasonMode = viewModel.selectedMode!!,
                                 questionText = viewModel.questionText,
                                 statUnitLabel = viewModel.statUnitLabel,
                                 choices = viewModel.choices,

@@ -90,6 +90,7 @@ class TriviaNoTieTest {
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
             mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val values = viewModel.choices.map { it.value }
@@ -121,6 +122,7 @@ class TriviaNoTieTest {
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
             mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val correctValue = viewModel.correctPlayer!!.value
@@ -153,6 +155,7 @@ class TriviaNoTieTest {
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
             mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val nonCorrectValues =
@@ -186,6 +189,7 @@ class TriviaNoTieTest {
             mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
             mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val values = viewModel.choices.map { it.value }

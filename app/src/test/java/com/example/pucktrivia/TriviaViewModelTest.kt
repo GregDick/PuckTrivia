@@ -91,10 +91,93 @@ class TriviaViewModelTest {
     }
 
     @Test
+    fun `ViewModel does not fetch on construction`() =
+        runTest(testDispatcher) {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            assertNull(viewModel.selectedMode)
+            assertFalse(viewModel.isLoading)
+            assertTrue(viewModel.choices.isEmpty())
+            assertEquals(0, mockWebServer.requestCount)
+        }
+
+    @Test
+    fun `startGame with RegularSeason fetches regular-season URLs`() =
+        runTest(testDispatcher) {
+            enqueueDefaultResponse()
+            val recordedModes = mutableListOf<SeasonMode>()
+            val skaterUrl =
+                mockWebServer.url("/v1/skater-stats-leaders/current?limit=-1").toString()
+            val goalieUrl =
+                mockWebServer.url("/v1/goalie-stats-leaders/current?limit=-1").toString()
+            val recordingProvider =
+                object : StatsUrlProvider() {
+                    override fun skaterUrl(mode: SeasonMode): String {
+                        recordedModes.add(mode)
+                        return skaterUrl
+                    }
+
+                    override fun goalieUrl(mode: SeasonMode): String = goalieUrl
+                }
+            val viewModel = TriviaViewModel(OkHttpClient(), recordingProvider, testDispatcher)
+            viewModel.startGame(SeasonMode.RegularSeason)
+            advanceUntilIdle()
+
+            assertEquals(listOf(SeasonMode.RegularSeason), recordedModes)
+            assertEquals(SeasonMode.RegularSeason, viewModel.selectedMode)
+        }
+
+    @Test
+    fun `startGame with Playoffs fetches playoff URLs`() =
+        runTest(testDispatcher) {
+            enqueueDefaultResponse()
+            val recordedModes = mutableListOf<SeasonMode>()
+            val skaterUrl =
+                mockWebServer.url("/v1/skater-stats-leaders/current?limit=-1").toString()
+            val goalieUrl =
+                mockWebServer.url("/v1/goalie-stats-leaders/current?limit=-1").toString()
+            val recordingProvider =
+                object : StatsUrlProvider() {
+                    override fun skaterUrl(mode: SeasonMode): String {
+                        recordedModes.add(mode)
+                        return skaterUrl
+                    }
+
+                    override fun goalieUrl(mode: SeasonMode): String = goalieUrl
+                }
+            val viewModel = TriviaViewModel(OkHttpClient(), recordingProvider, testDispatcher)
+            viewModel.startGame(SeasonMode.Playoffs)
+            advanceUntilIdle()
+
+            assertEquals(listOf(SeasonMode.Playoffs), recordedModes)
+            assertEquals(SeasonMode.Playoffs, viewModel.selectedMode)
+        }
+
+    @Test
+    fun `resetGame returns to selectedMode null with empty pools`() =
+        runTest(testDispatcher) {
+            enqueueDefaultResponse()
+            val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
+            advanceUntilIdle()
+
+            assertTrue(viewModel.choices.isNotEmpty())
+
+            viewModel.resetGame()
+
+            assertNull(viewModel.selectedMode)
+            assertFalse(viewModel.isLoading)
+            assertTrue(viewModel.pools.isEmpty())
+            assertTrue(viewModel.choices.isEmpty())
+        }
+
+    @Test
     fun `initial score is 0`() =
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             assertEquals(0, viewModel.score)
@@ -105,6 +188,7 @@ class TriviaViewModelTest {
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val correctId = viewModel.correctPlayer!!.id
@@ -118,6 +202,7 @@ class TriviaViewModelTest {
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val correctId = viewModel.correctPlayer!!.id
@@ -137,6 +222,7 @@ class TriviaViewModelTest {
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             viewModel.selectAnswer(viewModel.correctPlayer!!.id)
@@ -156,6 +242,7 @@ class TriviaViewModelTest {
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             viewModel.selectAnswer(viewModel.correctPlayer!!.id)
@@ -176,6 +263,7 @@ class TriviaViewModelTest {
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             assertEquals(3, viewModel.choices.size)
@@ -191,6 +279,7 @@ class TriviaViewModelTest {
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val firstRead = viewModel.choices
@@ -206,6 +295,7 @@ class TriviaViewModelTest {
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             assertFalse(viewModel.answered)
@@ -218,6 +308,7 @@ class TriviaViewModelTest {
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             viewModel.selectAnswer(viewModel.choices.first().id)
@@ -233,36 +324,12 @@ class TriviaViewModelTest {
         runTest(testDispatcher) {
             enqueueDefaultResponse()
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val correct = viewModel.correctPlayer
             assertNotNull(correct)
             val maxValue = viewModel.choices.maxOf { it.value }
             assertEquals(maxValue, correct!!.value, 0.001)
-        }
-
-    @Test
-    fun `fetchStats calls provider with RegularSeason mode`() =
-        runTest(testDispatcher) {
-            enqueueDefaultResponse()
-            val recordedModes = mutableListOf<SeasonMode>()
-            val skaterUrl =
-                mockWebServer.url("/v1/skater-stats-leaders/current?limit=-1").toString()
-            val goalieUrl =
-                mockWebServer.url("/v1/goalie-stats-leaders/current?limit=-1").toString()
-            val recordingProvider =
-                object : StatsUrlProvider() {
-                    override fun skaterUrl(mode: SeasonMode): String {
-                        recordedModes.add(mode)
-                        return skaterUrl
-                    }
-
-                    override fun goalieUrl(mode: SeasonMode): String = goalieUrl
-                }
-            val viewModel = TriviaViewModel(OkHttpClient(), recordingProvider, testDispatcher)
-            advanceUntilIdle()
-
-            assertTrue(recordedModes.isNotEmpty())
-            assertTrue(recordedModes.all { it == SeasonMode.RegularSeason })
         }
 }

@@ -43,7 +43,10 @@ constructor(
     var goalieStatsData by mutableStateOf<Map<String, List<GoalieStatLeader>>>(emptyMap())
         internal set
 
-    var isLoading by mutableStateOf(true)
+    var selectedMode by mutableStateOf<SeasonMode?>(null)
+        private set
+
+    var isLoading by mutableStateOf(false)
         private set
 
     var loadError by mutableStateOf(false)
@@ -97,12 +100,12 @@ constructor(
     val isCorrect: Boolean
         get() = selectedPlayerId == correctPlayer?.id
 
-    init {
-        fetchStats()
-    }
-
-    private fun fetchStats() {
-        val mode = SeasonMode.RegularSeason
+    fun startGame(mode: SeasonMode) {
+        if (isLoading) return
+        selectedMode = mode
+        isLoading = true
+        loadError = false
+        fatalError = false
         viewModelScope.launch {
             try {
                 val skaterData: Map<String, List<SkaterStatLeader>>
@@ -148,15 +151,23 @@ constructor(
     }
 
     fun resetGame() {
+        selectedMode = null
+        isLoading = false
+        loadError = false
+        fatalError = false
+        gameOver = false
         lives = 3
         score = 0
         totalAnswered = 0
         correctAnswered = 0
         selectedPlayerId = null
-        gameOver = false
-        fatalError = false
         usedIds = emptyMap()
-        prepareRound()
+        statsData = emptyMap()
+        goalieStatsData = emptyMap()
+        pools = emptyMap()
+        choices = emptyList()
+        correctPlayer = null
+        questionText = ""
     }
 
     private fun buildPools(

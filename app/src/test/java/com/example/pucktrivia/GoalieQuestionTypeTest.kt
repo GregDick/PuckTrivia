@@ -119,6 +119,7 @@ class GoalieQuestionTypeTest {
             val json = createGoalieStatsJson(defaultSavePctg, defaultWins)
             enqueueGoalieOnly(json)
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             assertNotNull(viewModel.goalieStatsData["savePctg"])
@@ -131,6 +132,7 @@ class GoalieQuestionTypeTest {
             val json = createGoalieStatsJson(defaultSavePctg, defaultWins)
             enqueueGoalieOnly(json)
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val goalie = viewModel.goalieStatsData["savePctg"]!!.first()
@@ -147,6 +149,7 @@ class GoalieQuestionTypeTest {
             val json = createGoalieStatsJson(defaultSavePctg, defaultWins)
             enqueueGoalieOnly(json)
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             assertEquals(
@@ -173,6 +176,7 @@ class GoalieQuestionTypeTest {
             mockWebServer.enqueue(MockResponse().setBody(skaterJson).setResponseCode(200))
             mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             assertNull(viewModel.pools[QuestionType.GOALIES_SAVE_PCT])
@@ -207,6 +211,7 @@ class GoalieQuestionTypeTest {
             val json = createGoalieStatsJson(savePctg, wins)
             enqueueGoalieOnly(json)
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val pool = viewModel.pools[QuestionType.GOALIES_SAVE_PCT]!!
@@ -227,6 +232,7 @@ class GoalieQuestionTypeTest {
             val json = createGoalieStatsJson(savePctg, wins)
             enqueueGoalieOnly(json)
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val pool = viewModel.pools[QuestionType.GOALIES_SAVE_PCT]!!
@@ -247,6 +253,7 @@ class GoalieQuestionTypeTest {
             val json = createGoalieStatsJson(savePctg, wins)
             enqueueGoalieOnly(json)
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val pool = viewModel.pools[QuestionType.GOALIES_SAVE_PCT]!!
@@ -273,6 +280,7 @@ class GoalieQuestionTypeTest {
                 MockResponse().setBody(createGoalieStatsJson(savePctg, wins)).setResponseCode(200)
             )
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             assertNull(viewModel.pools[QuestionType.GOALIES_SAVE_PCT])
@@ -288,6 +296,7 @@ class GoalieQuestionTypeTest {
             val json = createGoalieStatsJson(defaultSavePctg, defaultWins)
             enqueueGoalieOnly(json)
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val maxValue = viewModel.choices.maxOf { it.value }
@@ -300,6 +309,7 @@ class GoalieQuestionTypeTest {
             val json = createGoalieStatsJson(defaultSavePctg, defaultWins)
             enqueueGoalieOnly(json)
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val values = viewModel.choices.map { it.value }
@@ -316,6 +326,7 @@ class GoalieQuestionTypeTest {
             val json = createGoalieStatsJson(defaultSavePctg, defaultWins)
             enqueueGoalieOnly(json)
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             assertEquals(
@@ -330,6 +341,7 @@ class GoalieQuestionTypeTest {
             val json = createGoalieStatsJson(defaultSavePctg, defaultWins)
             enqueueGoalieOnly(json)
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             assertEquals("", viewModel.statUnitLabel)
@@ -346,6 +358,7 @@ class GoalieQuestionTypeTest {
             enqueueGoalieOnly(json)
             // Single type available (no skater data) → always GOALIES_SAVE_PCT
             val viewModel = createViewModel(Random(42))
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val round1Ids = viewModel.choices.map { it.id }.toSet()
@@ -367,6 +380,7 @@ class GoalieQuestionTypeTest {
             val json = createGoalieStatsJson(defaultSavePctg, defaultWins)
             enqueueGoalieOnly(json)
             val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             viewModel.choices.forEach { player ->
