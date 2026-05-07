@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.pucktrivia.model.SeasonMode
 import com.example.pucktrivia.ui.theme.PuckTriviaTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -58,6 +59,14 @@ class MainActivity : ComponentActivity() {
                                     color = MaterialTheme.colorScheme.error,
                                 )
                             }
+                        }
+                        viewModel.playoffsUnavailable -> {
+                            PlayoffsUnavailableScreen(
+                                onPlayRegularSeason = {
+                                    viewModel.startGame(SeasonMode.RegularSeason)
+                                },
+                                modifier = Modifier.padding(innerPadding),
+                            )
                         }
                         viewModel.fatalError -> {
                             Box(

@@ -94,6 +94,9 @@ constructor(
     var fatalError by mutableStateOf(false)
         private set
 
+    var playoffsUnavailable by mutableStateOf(false)
+        private set
+
     val answered: Boolean
         get() = selectedPlayerId != null
 
@@ -106,6 +109,7 @@ constructor(
         isLoading = true
         loadError = false
         fatalError = false
+        playoffsUnavailable = false
         viewModelScope.launch {
             try {
                 val skaterData: Map<String, List<SkaterStatLeader>>
@@ -119,7 +123,11 @@ constructor(
                 statsData = skaterData
                 goalieStatsData = goalieData
                 buildPools(skaterData, goalieData)
-                prepareRound()
+                if (pools.isEmpty() && mode == SeasonMode.Playoffs) {
+                    playoffsUnavailable = true
+                } else {
+                    prepareRound()
+                }
             } catch (e: Exception) {
                 Log.e("TriviaViewModel", "Failed to fetch stats", e)
                 loadError = true
@@ -155,6 +163,7 @@ constructor(
         isLoading = false
         loadError = false
         fatalError = false
+        playoffsUnavailable = false
         gameOver = false
         lives = 3
         score = 0
@@ -223,7 +232,7 @@ constructor(
             return
         }
 
-        questionText = type.questionText
+        questionText = type.questionText(selectedMode ?: SeasonMode.RegularSeason)
         statUnitLabel = type.unitLabel
         usedIds = usedIds + (type to (currentUsed + picked.map { it.id }))
         choices = picked

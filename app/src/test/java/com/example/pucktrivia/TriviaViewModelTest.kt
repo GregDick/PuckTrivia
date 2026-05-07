@@ -332,4 +332,124 @@ class TriviaViewModelTest {
             val maxValue = viewModel.choices.maxOf { it.value }
             assertEquals(maxValue, correct!!.value, 0.001)
         }
+
+    @Test
+    fun `empty playoff response sets playoffsUnavailable and not fatalError`() =
+        runTest(testDispatcher) {
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
+            val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.Playoffs)
+            advanceUntilIdle()
+
+            assertTrue(viewModel.playoffsUnavailable)
+            assertFalse(viewModel.fatalError)
+            assertFalse(viewModel.loadError)
+            assertTrue(viewModel.pools.isEmpty())
+            assertTrue(viewModel.choices.isEmpty())
+        }
+
+    @Test
+    fun `empty regular-season response sets fatalError not playoffsUnavailable`() =
+        runTest(testDispatcher) {
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
+            val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
+            advanceUntilIdle()
+
+            assertTrue(viewModel.fatalError)
+            assertFalse(viewModel.playoffsUnavailable)
+            assertFalse(viewModel.loadError)
+        }
+
+    @Test
+    fun `network failure in playoffs sets loadError not playoffsUnavailable`() =
+        runTest(testDispatcher) {
+            mockWebServer.enqueue(MockResponse().setResponseCode(500))
+            mockWebServer.enqueue(MockResponse().setResponseCode(500))
+            val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.Playoffs)
+            advanceUntilIdle()
+
+            assertTrue(viewModel.loadError)
+            assertFalse(viewModel.playoffsUnavailable)
+            assertFalse(viewModel.fatalError)
+        }
+
+    @Test
+    fun `switching from playoffsUnavailable to RegularSeason clears flag and re-fetches`() =
+        runTest(testDispatcher) {
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
+            mockWebServer.enqueue(
+                MockResponse().setBody(createDefaultStatsJson()).setResponseCode(200)
+            )
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
+
+            val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.Playoffs)
+            advanceUntilIdle()
+            assertTrue(viewModel.playoffsUnavailable)
+
+            viewModel.startGame(SeasonMode.RegularSeason)
+            advanceUntilIdle()
+
+            assertFalse(viewModel.playoffsUnavailable)
+            assertFalse(viewModel.fatalError)
+            assertEquals(SeasonMode.RegularSeason, viewModel.selectedMode)
+            assertTrue(viewModel.choices.isNotEmpty())
+        }
+
+    @Test
+    fun `playoffs question text uses playoff copy after fetch`() =
+        runTest(testDispatcher) {
+            enqueueDefaultResponse()
+            val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.Playoffs)
+            advanceUntilIdle()
+
+            assertTrue(
+                "Expected playoff question text to contain 'playoff' but was '${viewModel.questionText}'",
+                viewModel.questionText.contains("playoff"),
+            )
+            assertFalse(
+                "Expected playoff question text to drop 'currently' but was '${viewModel.questionText}'",
+                viewModel.questionText.contains("currently"),
+            )
+        }
+
+    @Test
+    fun `regular season question text uses regular-season copy after fetch`() =
+        runTest(testDispatcher) {
+            enqueueDefaultResponse()
+            val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
+            advanceUntilIdle()
+
+            assertTrue(
+                "Expected regular-season question text to contain 'currently' but was '${viewModel.questionText}'",
+                viewModel.questionText.contains("currently"),
+            )
+            assertFalse(
+                "Expected regular-season question text not to contain 'playoff' but was '${viewModel.questionText}'",
+                viewModel.questionText.contains("playoff"),
+            )
+        }
+
+    @Test
+    fun `resetGame clears playoffsUnavailable flag`() =
+        runTest(testDispatcher) {
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
+            mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
+            val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.Playoffs)
+            advanceUntilIdle()
+            assertTrue(viewModel.playoffsUnavailable)
+
+            viewModel.resetGame()
+
+            assertFalse(viewModel.playoffsUnavailable)
+            assertNull(viewModel.selectedMode)
+        }
 }
