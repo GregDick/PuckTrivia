@@ -91,7 +91,7 @@ class GoalieQuestionTypeTest {
         mockWebServer.enqueue(MockResponse().setBody(goalieJson).setResponseCode(200))
     }
 
-    // Standard 5 qualifying goalies (all have 10+ wins), distinct SV%
+    // Standard 5 goalies with distinct SV%
     private val defaultSavePctg =
         listOf(
             Triple(1, "Fleury", 0.930),
@@ -185,29 +185,16 @@ class GoalieQuestionTypeTest {
         }
 
     // -----------------------------------------------------------------------
-    // Story 2: Pool construction — minWins filter and poolFraction
+    // Story 2: Pool construction — poolFraction (no wins-based filter)
     // -----------------------------------------------------------------------
 
     @Test
-    fun `GOALIES_SAVE_PCT pool contains only goalies with minWins or more wins`() =
+    fun `GOALIES_SAVE_PCT pool includes all goalies regardless of wins`() =
         runTest(testDispatcher) {
-            // IDs 1,2,3 have 10+ wins (qualifying). IDs 4,5 have fewer than 10 (filtered out).
-            val savePctg =
-                listOf(
-                    Triple(1, "G1", 0.930),
-                    Triple(2, "G2", 0.920),
-                    Triple(3, "G3", 0.915),
-                    Triple(4, "G4", 0.910),
-                    Triple(5, "G5", 0.905),
-                )
-            val wins =
-                listOf(
-                    Triple(1, "G1", 35.0),
-                    Triple(2, "G2", 30.0),
-                    Triple(3, "G3", 10.0),
-                    Triple(4, "G4", 5.0),
-                    Triple(5, "G5", 2.0),
-                )
+            // 10 goalies with varied save percentages and varied wins from 0 to 30.
+            // With minWins removed and poolFraction=1.0, all 10 should be in the pool.
+            val savePctg = (1..10).map { Triple(it, "G$it", 0.930 - it * 0.002) }
+            val wins = (1..10).map { Triple(it, "G$it", ((it - 1) * 3).toDouble()) }
             val json = createGoalieStatsJson(savePctg, wins)
             enqueueGoalieOnly(json)
             val viewModel = createViewModel()
@@ -215,20 +202,19 @@ class GoalieQuestionTypeTest {
             advanceUntilIdle()
 
             val pool = viewModel.pools[QuestionType.GOALIES_SAVE_PCT]!!
-            val poolIds = pool.map { it.id }.toSet()
+            assertEquals("All 10 goalies should be in the pool", 10, pool.size)
             assertEquals(
-                "Pool should contain exactly 3 qualifying goalies",
-                setOf(1, 2, 3),
-                poolIds,
+                "Pool should include every goalie regardless of wins",
+                (1..10).toSet(),
+                pool.map { it.id }.toSet(),
             )
         }
 
     @Test
-    fun `GOALIES_SAVE_PCT pool includes all qualifying goalies (poolFraction = 1point0)`() =
+    fun `GOALIES_SAVE_PCT pool is sorted by save percentage descending`() =
         runTest(testDispatcher) {
-            // 6 goalies all with 10+ wins → pool should contain all 6 (not just top 50%)
-            val savePctg = (1..6).map { Triple(it, "G$it", 0.930 - it * 0.005) }
-            val wins = (1..6).map { Triple(it, "G$it", (40 - it * 3).toDouble()) }
+            val savePctg = (1..10).map { Triple(it, "G$it", 0.930 - it * 0.002) }
+            val wins = (1..10).map { Triple(it, "G$it", ((it - 1) * 3).toDouble()) }
             val json = createGoalieStatsJson(savePctg, wins)
             enqueueGoalieOnly(json)
             val viewModel = createViewModel()
@@ -236,54 +222,57 @@ class GoalieQuestionTypeTest {
             advanceUntilIdle()
 
             val pool = viewModel.pools[QuestionType.GOALIES_SAVE_PCT]!!
-            assertEquals("All 6 qualifying goalies should be in the pool", 6, pool.size)
+            val values = pool.map { it.value }
+            assertEquals(
+                "Pool should be sorted by save percentage descending",
+                values.sortedDescending(),
+                values,
+            )
         }
 
     @Test
-    fun `goalie with exactly minWins wins is included in pool`() =
+    fun `GOALIES_SAVE_PCT pool size equals ceil(N times poolFraction)`() =
         runTest(testDispatcher) {
+            val savePctg = (1..7).map { Triple(it, "G$it", 0.930 - it * 0.003) }
+            val wins = (1..7).map { Triple(it, "G$it", (10 + it).toDouble()) }
+            val json = createGoalieStatsJson(savePctg, wins)
+            enqueueGoalieOnly(json)
+            val viewModel = createViewModel()
+            viewModel.startGame(SeasonMode.RegularSeason)
+            advanceUntilIdle()
+
+            val pool = viewModel.pools[QuestionType.GOALIES_SAVE_PCT]!!
+            val expected = kotlin.math.ceil(7 * QuestionType.GOALIES_SAVE_PCT.poolFraction).toInt()
+            assertEquals("Pool size should be ceil(N * poolFraction)", expected, pool.size)
+        }
+
+    @Test
+    fun `GOALIES_SAVE_PCT pool with 4 playoff goalies includes all 4`() =
+        runTest(testDispatcher) {
+            // Early-playoff scenario: only 4 goalies have a recorded save percentage.
+            // Without the old minWins=10 filter, all 4 should be in the pool.
             val savePctg =
-                listOf(Triple(1, "G1", 0.930), Triple(2, "G2", 0.920), Triple(3, "G3", 0.915))
+                listOf(
+                    Triple(1, "G1", 0.945),
+                    Triple(2, "G2", 0.928),
+                    Triple(3, "G3", 0.910),
+                    Triple(4, "G4", 0.890),
+                )
             val wins =
                 listOf(
-                    Triple(1, "G1", 20.0),
-                    Triple(2, "G2", 15.0),
-                    Triple(3, "G3", 10.0), // exactly minWins
+                    Triple(1, "G1", 4.0),
+                    Triple(2, "G2", 3.0),
+                    Triple(3, "G3", 2.0),
+                    Triple(4, "G4", 1.0),
                 )
             val json = createGoalieStatsJson(savePctg, wins)
             enqueueGoalieOnly(json)
             val viewModel = createViewModel()
-            viewModel.startGame(SeasonMode.RegularSeason)
+            viewModel.startGame(SeasonMode.Playoffs)
             advanceUntilIdle()
 
             val pool = viewModel.pools[QuestionType.GOALIES_SAVE_PCT]!!
-            assertTrue("Goalie with exactly 10 wins should be in pool", pool.any { it.id == 3 })
-        }
-
-    @Test
-    fun `no goalie pool built when all goalies are below minWins`() =
-        runTest(testDispatcher) {
-            val skaterJson =
-                """{"points":[
-                {"id":1,"firstName":{"default":"A"},"lastName":{"default":"P"},"sweaterNumber":11,"teamAbbrev":"TST","position":"C","value":100.0},
-                {"id":2,"firstName":{"default":"B"},"lastName":{"default":"P"},"sweaterNumber":12,"teamAbbrev":"TST","position":"C","value":80.0},
-                {"id":3,"firstName":{"default":"C"},"lastName":{"default":"P"},"sweaterNumber":13,"teamAbbrev":"TST","position":"C","value":60.0},
-                {"id":4,"firstName":{"default":"D"},"lastName":{"default":"P"},"sweaterNumber":14,"teamAbbrev":"TST","position":"C","value":40.0},
-                {"id":5,"firstName":{"default":"E"},"lastName":{"default":"P"},"sweaterNumber":15,"teamAbbrev":"TST","position":"C","value":20.0},
-                {"id":6,"firstName":{"default":"F"},"lastName":{"default":"P"},"sweaterNumber":16,"teamAbbrev":"TST","position":"C","value":10.0}
-            ]}"""
-            val savePctg =
-                listOf(Triple(1, "G1", 0.930), Triple(2, "G2", 0.920), Triple(3, "G3", 0.915))
-            val wins = listOf(Triple(1, "G1", 3.0), Triple(2, "G2", 2.0), Triple(3, "G3", 1.0))
-            mockWebServer.enqueue(MockResponse().setBody(skaterJson).setResponseCode(200))
-            mockWebServer.enqueue(
-                MockResponse().setBody(createGoalieStatsJson(savePctg, wins)).setResponseCode(200)
-            )
-            val viewModel = createViewModel()
-            viewModel.startGame(SeasonMode.RegularSeason)
-            advanceUntilIdle()
-
-            assertNull(viewModel.pools[QuestionType.GOALIES_SAVE_PCT])
+            assertEquals("All 4 playoff goalies should be in the pool", 4, pool.size)
         }
 
     // -----------------------------------------------------------------------
@@ -350,7 +339,7 @@ class GoalieQuestionTypeTest {
     @Test
     fun `goalie pool resets independently when exhausted`() =
         runTest(testDispatcher) {
-            // 3 qualifying goalies → pool of 3. Round 1 exhausts it. Round 2 resets and reuses.
+            // 3 goalies → pool of 3. Round 1 exhausts it. Round 2 resets and reuses.
             val savePctg =
                 listOf(Triple(1, "G1", 0.930), Triple(2, "G2", 0.920), Triple(3, "G3", 0.915))
             val wins = listOf(Triple(1, "G1", 20.0), Triple(2, "G2", 15.0), Triple(3, "G3", 10.0))

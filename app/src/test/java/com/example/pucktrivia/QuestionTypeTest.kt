@@ -20,11 +20,6 @@ class QuestionTypeTest {
     }
 
     @Test
-    fun `GOALIES_SAVE_PCT has minWins of 10`() {
-        assertEquals(10, QuestionType.GOALIES_SAVE_PCT.minWins)
-    }
-
-    @Test
     fun `GOALIES_SAVE_PCT has correct statKey`() {
         assertEquals("savePctg", QuestionType.GOALIES_SAVE_PCT.statKey)
     }
@@ -131,14 +126,6 @@ class QuestionTypeTest {
         val skaterTypes = QuestionType.entries.filter { it.positionGroup != null }
         for (type in skaterTypes) {
             assertEquals("$type should have poolFraction 0.5", 0.5, type.poolFraction, 0.001)
-        }
-    }
-
-    @Test
-    fun `all skater types have minWins of 0`() {
-        val skaterTypes = QuestionType.entries.filter { it.positionGroup != null }
-        for (type in skaterTypes) {
-            assertEquals("$type should have minWins 0", 0, type.minWins)
         }
     }
 

@@ -7,7 +7,6 @@ enum class QuestionType(
     private val playoffsText: String,
     val unitLabel: String,
     val poolFraction: Double = 0.5,
-    val minWins: Int = 0,
 ) {
     DEFENDERS_POINTS(
         statKey = "points",
@@ -44,7 +43,6 @@ enum class QuestionType(
         playoffsText = "Which of these goalies has the highest playoff save percentage?",
         unitLabel = "",
         poolFraction = 1.0,
-        minWins = 10,
     );
 
     fun questionText(mode: SeasonMode): String =

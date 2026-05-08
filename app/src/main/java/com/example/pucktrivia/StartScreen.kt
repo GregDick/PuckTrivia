@@ -33,12 +33,12 @@ fun StartScreen(onModeSelected: (SeasonMode) -> Unit, modifier: Modifier = Modif
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "NHL trivia, fresh from the league",
+            text = "Score points by answering correctly. Game ends after three wrong answers.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onBackground,
         )
         Spacer(modifier = Modifier.height(48.dp))
-        Text(text = "Choose your stats:", style = MaterialTheme.typography.titleLarge)
+        Text(text = "Select a time frame for stats:", style = MaterialTheme.typography.titleLarge)
         Spacer(modifier = Modifier.height(24.dp))
         Button(
             onClick = { onModeSelected(SeasonMode.RegularSeason) },

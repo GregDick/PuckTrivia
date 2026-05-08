@@ -193,12 +193,8 @@ constructor(
                 built[type] = sorted.take(kotlin.math.ceil(sorted.size * type.poolFraction).toInt())
             } else {
                 val savePctgList = goalieData[type.statKey] ?: continue
-                val winsList = goalieData["wins"] ?: emptyList()
-                val qualifiedIds =
-                    winsList.filter { it.value >= type.minWins }.map { it.id }.toSet()
-                val filtered = savePctgList.filter { it.id in qualifiedIds }
-                if (filtered.isEmpty()) continue
-                val sorted = filtered.sortedByDescending { it.value }
+                if (savePctgList.isEmpty()) continue
+                val sorted = savePctgList.sortedByDescending { it.value }
                 built[type] = sorted.take(kotlin.math.ceil(sorted.size * type.poolFraction).toInt())
             }
         }
