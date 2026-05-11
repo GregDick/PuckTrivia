@@ -68,7 +68,7 @@ class GoalieQuestionTypeTest {
     }
 
     private fun fakeProvider(skaterUrl: String, goalieUrl: String): StatsUrlProvider =
-        object : StatsUrlProvider() {
+        object : StatsUrlProvider {
             override fun skaterUrl(mode: SeasonMode) = skaterUrl
 
             override fun goalieUrl(mode: SeasonMode) = goalieUrl

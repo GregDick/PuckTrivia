@@ -107,6 +107,9 @@ constructor(
         if (isLoading) return
         selectedMode = mode
         isLoading = true
+        // loadError, fatalError, and playoffsUnavailable are mutually exclusive: reset together
+        // here and only one is set during a fetch attempt. MainActivity's `when` ordering relies
+        // on this invariant.
         loadError = false
         fatalError = false
         playoffsUnavailable = false

@@ -78,7 +78,7 @@ class TriviaViewModelTest {
     }
 
     private fun fakeProvider(skaterUrl: String, goalieUrl: String): StatsUrlProvider =
-        object : StatsUrlProvider() {
+        object : StatsUrlProvider {
             override fun skaterUrl(mode: SeasonMode) = skaterUrl
 
             override fun goalieUrl(mode: SeasonMode) = goalieUrl
@@ -112,7 +112,7 @@ class TriviaViewModelTest {
             val goalieUrl =
                 mockWebServer.url("/v1/goalie-stats-leaders/current?limit=-1").toString()
             val recordingProvider =
-                object : StatsUrlProvider() {
+                object : StatsUrlProvider {
                     override fun skaterUrl(mode: SeasonMode): String {
                         recordedModes.add(mode)
                         return skaterUrl
@@ -138,7 +138,7 @@ class TriviaViewModelTest {
             val goalieUrl =
                 mockWebServer.url("/v1/goalie-stats-leaders/current?limit=-1").toString()
             val recordingProvider =
-                object : StatsUrlProvider() {
+                object : StatsUrlProvider {
                     override fun skaterUrl(mode: SeasonMode): String {
                         recordedModes.add(mode)
                         return skaterUrl
