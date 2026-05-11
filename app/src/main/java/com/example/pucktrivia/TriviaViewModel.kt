@@ -7,11 +7,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.pucktrivia.di.GoalieStatsUrl
 import com.example.pucktrivia.di.IoDispatcher
-import com.example.pucktrivia.di.StatsUrl
+import com.example.pucktrivia.di.StatsUrlProvider
 import com.example.pucktrivia.model.GoalieStatLeader
 import com.example.pucktrivia.model.QuestionType
+import com.example.pucktrivia.model.SeasonMode
 import com.example.pucktrivia.model.SkaterStatLeader
 import com.example.pucktrivia.model.StatLeader
 import com.example.pucktrivia.model.positionGroup
@@ -32,8 +32,7 @@ class TriviaViewModel
 @Inject
 constructor(
     private val client: OkHttpClient,
-    @StatsUrl private val statsUrl: String,
-    @GoalieStatsUrl private val goalieStatsUrl: String,
+    private val urlProvider: StatsUrlProvider,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     private val random: kotlin.random.Random = kotlin.random.Random,
 ) : ViewModel() {
@@ -44,7 +43,10 @@ constructor(
     var goalieStatsData by mutableStateOf<Map<String, List<GoalieStatLeader>>>(emptyMap())
         internal set
 
-    var isLoading by mutableStateOf(true)
+    var selectedMode by mutableStateOf<SeasonMode?>(null)
+        private set
+
+    var isLoading by mutableStateOf(false)
         private set
 
     var loadError by mutableStateOf(false)
@@ -92,31 +94,43 @@ constructor(
     var fatalError by mutableStateOf(false)
         private set
 
+    var playoffsUnavailable by mutableStateOf(false)
+        private set
+
     val answered: Boolean
         get() = selectedPlayerId != null
 
     val isCorrect: Boolean
         get() = selectedPlayerId == correctPlayer?.id
 
-    init {
-        fetchStats()
-    }
-
-    private fun fetchStats() {
+    fun startGame(mode: SeasonMode) {
+        if (isLoading) return
+        selectedMode = mode
+        isLoading = true
+        // loadError, fatalError, and playoffsUnavailable are mutually exclusive: reset together
+        // here and only one is set during a fetch attempt. MainActivity's `when` ordering relies
+        // on this invariant.
+        loadError = false
+        fatalError = false
+        playoffsUnavailable = false
         viewModelScope.launch {
             try {
                 val skaterData: Map<String, List<SkaterStatLeader>>
                 val goalieData: Map<String, List<GoalieStatLeader>>
                 coroutineScope {
-                    val skaterDeferred = async { fetchSkaterStats() }
-                    val goalieDeferred = async { fetchGoalieStats() }
+                    val skaterDeferred = async { fetchSkaterStats(mode) }
+                    val goalieDeferred = async { fetchGoalieStats(mode) }
                     skaterData = skaterDeferred.await()
                     goalieData = goalieDeferred.await()
                 }
                 statsData = skaterData
                 goalieStatsData = goalieData
                 buildPools(skaterData, goalieData)
-                prepareRound()
+                if (pools.isEmpty() && mode == SeasonMode.Playoffs) {
+                    playoffsUnavailable = true
+                } else {
+                    prepareRound()
+                }
             } catch (e: Exception) {
                 Log.e("TriviaViewModel", "Failed to fetch stats", e)
                 loadError = true
@@ -148,15 +162,24 @@ constructor(
     }
 
     fun resetGame() {
+        selectedMode = null
+        isLoading = false
+        loadError = false
+        fatalError = false
+        playoffsUnavailable = false
+        gameOver = false
         lives = 3
         score = 0
         totalAnswered = 0
         correctAnswered = 0
         selectedPlayerId = null
-        gameOver = false
-        fatalError = false
         usedIds = emptyMap()
-        prepareRound()
+        statsData = emptyMap()
+        goalieStatsData = emptyMap()
+        pools = emptyMap()
+        choices = emptyList()
+        correctPlayer = null
+        questionText = ""
     }
 
     private fun buildPools(
@@ -173,12 +196,8 @@ constructor(
                 built[type] = sorted.take(kotlin.math.ceil(sorted.size * type.poolFraction).toInt())
             } else {
                 val savePctgList = goalieData[type.statKey] ?: continue
-                val winsList = goalieData["wins"] ?: emptyList()
-                val qualifiedIds =
-                    winsList.filter { it.value >= type.minWins }.map { it.id }.toSet()
-                val filtered = savePctgList.filter { it.id in qualifiedIds }
-                if (filtered.isEmpty()) continue
-                val sorted = filtered.sortedByDescending { it.value }
+                if (savePctgList.isEmpty()) continue
+                val sorted = savePctgList.sortedByDescending { it.value }
                 built[type] = sorted.take(kotlin.math.ceil(sorted.size * type.poolFraction).toInt())
             }
         }
@@ -212,7 +231,7 @@ constructor(
             return
         }
 
-        questionText = type.questionText
+        questionText = type.questionText(selectedMode ?: SeasonMode.RegularSeason)
         statUnitLabel = type.unitLabel
         usedIds = usedIds + (type to (currentUsed + picked.map { it.id }))
         choices = picked
@@ -233,9 +252,9 @@ constructor(
         return result
     }
 
-    private suspend fun fetchSkaterStats(): Map<String, List<SkaterStatLeader>> =
+    private suspend fun fetchSkaterStats(mode: SeasonMode): Map<String, List<SkaterStatLeader>> =
         withContext(ioDispatcher) {
-            val request = Request.Builder().url(statsUrl).build()
+            val request = Request.Builder().url(urlProvider.skaterUrl(mode)).build()
             val response = client.newCall(request).execute()
             val json =
                 JSONObject(response.body?.string() ?: throw IOException("Empty response body"))
@@ -263,9 +282,9 @@ constructor(
             result
         }
 
-    private suspend fun fetchGoalieStats(): Map<String, List<GoalieStatLeader>> =
+    private suspend fun fetchGoalieStats(mode: SeasonMode): Map<String, List<GoalieStatLeader>> =
         withContext(ioDispatcher) {
-            val request = Request.Builder().url(goalieStatsUrl).build()
+            val request = Request.Builder().url(urlProvider.goalieUrl(mode)).build()
             val response = client.newCall(request).execute()
             val json =
                 JSONObject(response.body?.string() ?: throw IOException("Empty response body"))

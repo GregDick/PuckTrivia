@@ -1,7 +1,9 @@
 package com.example.pucktrivia
 
+import com.example.pucktrivia.di.StatsUrlProvider
 import com.example.pucktrivia.model.PositionGroup
 import com.example.pucktrivia.model.QuestionType
+import com.example.pucktrivia.model.SeasonMode
 import com.example.pucktrivia.model.SkaterStatLeader
 import com.example.pucktrivia.model.positionGroup
 import kotlin.math.ceil
@@ -136,14 +138,23 @@ class PlayerPoolTest {
         return """{"points":[$pts]}"""
     }
 
-    private fun skaterMockUrl() =
-        mockWebServer.url("/v1/skater-stats-leaders/current?limit=-1").toString()
+    private fun fakeProvider(skaterUrl: String, goalieUrl: String): StatsUrlProvider =
+        object : StatsUrlProvider {
+            override fun skaterUrl(mode: SeasonMode) = skaterUrl
 
-    private fun goalieMockUrl() =
-        mockWebServer.url("/v1/goalie-stats-leaders/current?limit=-1").toString()
+            override fun goalieUrl(mode: SeasonMode) = goalieUrl
+        }
 
-    private fun createViewModel(random: Random) =
-        TriviaViewModel(OkHttpClient(), skaterMockUrl(), goalieMockUrl(), testDispatcher, random)
+    private fun createViewModel(random: Random): TriviaViewModel {
+        val skaterUrl = mockWebServer.url("/v1/skater-stats-leaders/current?limit=-1").toString()
+        val goalieUrl = mockWebServer.url("/v1/goalie-stats-leaders/current?limit=-1").toString()
+        return TriviaViewModel(
+            OkHttpClient(),
+            fakeProvider(skaterUrl, goalieUrl),
+            testDispatcher,
+            random,
+        )
+    }
 
     /**
      * Controls type selection by intercepting random.nextInt(4) calls (type selection). Pool size
@@ -236,6 +247,7 @@ class PlayerPoolTest {
             mockWebServer.enqueue(MockResponse().setBody(createMixedJson()).setResponseCode(200))
             mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val pool = viewModel.pools[QuestionType.FORWARDS_POINTS]!!
@@ -250,6 +262,7 @@ class PlayerPoolTest {
             mockWebServer.enqueue(MockResponse().setBody(createMixedJson()).setResponseCode(200))
             mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val pool = viewModel.pools[QuestionType.DEFENDERS_POINTS]!!
@@ -264,6 +277,7 @@ class PlayerPoolTest {
             mockWebServer.enqueue(MockResponse().setBody(createMixedJson()).setResponseCode(200))
             mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val pool = viewModel.pools[QuestionType.FORWARDS_GOALS]!!
@@ -278,6 +292,7 @@ class PlayerPoolTest {
             mockWebServer.enqueue(MockResponse().setBody(createMixedJson()).setResponseCode(200))
             mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val pool = viewModel.pools[QuestionType.DEFENDERS_GOALS]!!
@@ -305,6 +320,7 @@ class PlayerPoolTest {
             )
             mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val fwdPool = viewModel.pools[QuestionType.FORWARDS_POINTS]!!
@@ -337,6 +353,7 @@ class PlayerPoolTest {
             )
             mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val defPool = viewModel.pools[QuestionType.DEFENDERS_GOALS]!!
@@ -370,6 +387,7 @@ class PlayerPoolTest {
             )
             mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val pool = viewModel.pools[QuestionType.FORWARDS_POINTS]!!
@@ -393,6 +411,7 @@ class PlayerPoolTest {
             )
             mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val pool = viewModel.pools[QuestionType.FORWARDS_POINTS]!!
@@ -411,6 +430,7 @@ class PlayerPoolTest {
             )
             mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             assertNull(
@@ -472,6 +492,7 @@ class PlayerPoolTest {
             )
             mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val defPointsIds =
@@ -494,6 +515,7 @@ class PlayerPoolTest {
             mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             // Force DEFENDERS_POINTS (index 0)
             val viewModel = createViewModel(makeTypeControlledRandom(listOf(0)))
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             assertEquals(
@@ -513,6 +535,7 @@ class PlayerPoolTest {
             mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             // Force FORWARDS_POINTS (index 1)
             val viewModel = createViewModel(makeTypeControlledRandom(listOf(1)))
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             assertEquals(
@@ -553,6 +576,7 @@ class PlayerPoolTest {
             mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             // Force FORWARDS_POINTS (index 0, since only 2 types available with no goals key)
             val viewModel = createViewModel(Random(42))
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val values = viewModel.choices.map { it.value }
@@ -570,6 +594,7 @@ class PlayerPoolTest {
             mockWebServer.enqueue(MockResponse().setBody(createMixedJson()).setResponseCode(200))
             mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val maxValue = viewModel.choices.maxOf { it.value }
@@ -606,6 +631,7 @@ class PlayerPoolTest {
             )
             mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             assertTrue(viewModel.fatalError)
@@ -632,6 +658,7 @@ class PlayerPoolTest {
             )
             mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             val viewModel = createViewModel(Random(42))
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             assertTrue(viewModel.fatalError)
@@ -685,6 +712,7 @@ class PlayerPoolTest {
             mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             // Round 1 = FORWARDS_POINTS (1), Round 2 = FORWARDS_GOALS (3)
             val viewModel = createViewModel(makeTypeControlledRandom(listOf(1, 3)))
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val pointsChoiceIds = viewModel.choices.map { it.id }.toSet()
@@ -735,6 +763,7 @@ class PlayerPoolTest {
             mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             // Both rounds = FORWARDS_GOALS (index 3, since 4 types available)
             val viewModel = createViewModel(makeTypeControlledRandom(listOf(3, 3)))
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val round1Ids = viewModel.choices.map { it.id }.toSet()
@@ -758,6 +787,7 @@ class PlayerPoolTest {
             mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             // Round 1 = FORWARDS_POINTS (1), Round 2 = FORWARDS_GOALS (3)
             val viewModel = createViewModel(makeTypeControlledRandom(listOf(1, 3)))
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             // After round 1 (FORWARDS_POINTS): only that type has used IDs
@@ -787,6 +817,7 @@ class PlayerPoolTest {
             mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             // Sequence: FORWARDS_POINTS(1), FORWARDS_GOALS(3), FORWARDS_GOALS(3) again (exhausted)
             val viewModel = createViewModel(makeTypeControlledRandom(listOf(1, 3, 3)))
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             // Round 1 (FORWARDS_POINTS)
@@ -818,6 +849,7 @@ class PlayerPoolTest {
             mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             // Two consecutive FORWARDS_GOALS (3) rounds — pool of 3 exhausted after round 1
             val viewModel = createViewModel(makeTypeControlledRandom(listOf(3, 3)))
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             val round1Ids = viewModel.choices.map { it.id }.toSet()
@@ -842,6 +874,7 @@ class PlayerPoolTest {
             mockWebServer.enqueue(MockResponse().setBody("{}").setResponseCode(200))
             // Play two rounds of different types to accumulate used IDs
             val viewModel = createViewModel(makeTypeControlledRandom(listOf(0, 1, 2, 3)))
+            viewModel.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
             viewModel.selectAnswer(viewModel.correctPlayer!!.id)
@@ -851,26 +884,7 @@ class PlayerPoolTest {
 
             viewModel.resetGame()
 
-            // resetGame() clears usedIds then immediately calls prepareRound(), which selects
-            // one type and marks its 3 choices as used. So exactly one type has 3 IDs; all others
-            // are empty — crucially, the two types used before reset are no longer populated.
-            val selectedType =
-                QuestionType.entries.firstOrNull { it.questionText == viewModel.questionText }
-            for (type in QuestionType.entries) {
-                val usedSize = (viewModel.usedIds[type] ?: emptySet()).size
-                if (type == selectedType) {
-                    assertEquals(
-                        "After resetGame, selected type should have exactly 3 used IDs (current round)",
-                        3,
-                        usedSize,
-                    )
-                } else {
-                    assertEquals(
-                        "After resetGame, non-selected type $type should have empty usedIds",
-                        0,
-                        usedSize,
-                    )
-                }
-            }
+            // resetGame() returns to Start Screen — all used sets are cleared, no round prepared
+            assertTrue("All usedIds should be empty after resetGame", viewModel.usedIds.isEmpty())
         }
 }

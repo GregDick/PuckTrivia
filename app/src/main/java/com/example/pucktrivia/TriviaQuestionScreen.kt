@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.example.pucktrivia.model.SeasonMode
 import com.example.pucktrivia.model.StatLeader
 
 internal val CorrectGreen = Color(0xFF4CAF50)
@@ -27,6 +28,7 @@ fun TriviaQuestionScreen(
     score: Int,
     lives: Int,
     livesColor: Color,
+    seasonMode: SeasonMode,
     questionText: String,
     statUnitLabel: String,
     choices: List<StatLeader>,
@@ -54,6 +56,15 @@ fun TriviaQuestionScreen(
                 text = "Lives: $lives",
                 style = MaterialTheme.typography.headlineLarge,
                 color = livesColor,
+            )
+            Text(
+                text =
+                    when (seasonMode) {
+                        SeasonMode.RegularSeason -> "Regular Season"
+                        SeasonMode.Playoffs -> "Playoffs"
+                    },
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.secondary,
             )
             // Fixed-height container so feedback doesn't shift other elements
             Box(

@@ -4,6 +4,7 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 import kotlin.random.Random
 import kotlinx.coroutines.CoroutineDispatcher
@@ -14,21 +15,15 @@ import okhttp3.OkHttpClient
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    private const val NHL_SEASON = "20252026"
-    private const val GAME_TYPE_REGULAR = "2"
-    private const val BASE = "https://api-web.nhle.com/v1"
-
-    @Provides @Singleton fun provideOkHttpClient(): OkHttpClient = OkHttpClient()
-
     @Provides
-    @StatsUrl
-    fun provideStatsUrl(): String =
-        "$BASE/skater-stats-leaders/$NHL_SEASON/$GAME_TYPE_REGULAR?limit=-1"
-
-    @Provides
-    @GoalieStatsUrl
-    fun provideGoalieStatsUrl(): String =
-        "$BASE/goalie-stats-leaders/$NHL_SEASON/$GAME_TYPE_REGULAR?limit=-1"
+    @Singleton
+    fun provideOkHttpClient(): OkHttpClient =
+        OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS)
+            .writeTimeout(10, TimeUnit.SECONDS)
+            .callTimeout(10, TimeUnit.SECONDS)
+            .build()
 
     @Provides @IoDispatcher fun provideIoDispatcher(): CoroutineDispatcher = Dispatchers.IO
 
