@@ -7,9 +7,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.pucktrivia.data.HighScoreRepository
+import com.example.pucktrivia.data.TimeProvider
 import com.example.pucktrivia.di.IoDispatcher
 import com.example.pucktrivia.di.StatsUrlProvider
 import com.example.pucktrivia.model.GoalieStatLeader
+import com.example.pucktrivia.model.HighScore
 import com.example.pucktrivia.model.QuestionType
 import com.example.pucktrivia.model.SeasonMode
 import com.example.pucktrivia.model.SkaterStatLeader
@@ -33,6 +36,8 @@ class TriviaViewModel
 constructor(
     private val client: OkHttpClient,
     private val urlProvider: StatsUrlProvider,
+    private val highScoreRepository: HighScoreRepository,
+    private val timeProvider: TimeProvider,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     private val random: kotlin.random.Random = kotlin.random.Random,
 ) : ViewModel() {
@@ -90,6 +95,24 @@ constructor(
 
     var gameOver by mutableStateOf(false)
         private set
+
+    /** Top-three leaderboard, populated after the score for a finished game is saved. */
+    var highScores by mutableStateOf<List<HighScore>>(emptyList())
+        private set
+
+    /** Whether the just-finished game's score placed on the leaderboard. */
+    var placedInTopThree by mutableStateOf(false)
+        private set
+
+    /**
+     * The just-finished game's entry (score + end time), used to highlight its row in the
+     * leaderboard. Null until a game ends and its score is recorded.
+     */
+    var currentGameHighScore by mutableStateOf<HighScore?>(null)
+        private set
+
+    /** Guards against saving the same finished game's score more than once. */
+    private var scoreSaved = false
 
     var fatalError by mutableStateOf(false)
         private set
@@ -152,13 +175,41 @@ constructor(
     }
 
     fun nextRound() {
+        // Already finished: the score is saved and there is nothing more to advance. The
+        // scoreSaved guard would block a re-save anyway, but returning early keeps the
+        // post-game-over state fully frozen.
+        if (gameOver) return
         roundNumber++
         selectedPlayerId = null
         if (lives == 0) {
             gameOver = true
+            saveScore()
             return
         }
         prepareRound()
+    }
+
+    /**
+     * Persists the finished game's score exactly once. The timestamp is captured here, at the
+     * moment the game ends, not when the save coroutine later runs. A storage failure is logged and
+     * swallowed — it must never crash or block the game-over flow.
+     */
+    private fun saveScore() {
+        if (scoreSaved) return
+        scoreSaved = true
+        val entry = HighScore(score = score, endedAt = timeProvider.nowMillis())
+        viewModelScope.launch {
+            try {
+                val result = highScoreRepository.submit(entry.score, entry.endedAt)
+                // Set together so the screen never sees a highlighted current-game entry
+                // alongside an empty leaderboard.
+                currentGameHighScore = entry
+                highScores = result.topThree
+                placedInTopThree = result.placedInTopThree
+            } catch (e: Exception) {
+                Log.e("TriviaViewModel", "Failed to save high score", e)
+            }
+        }
     }
 
     fun resetGame() {
@@ -168,6 +219,10 @@ constructor(
         fatalError = false
         playoffsUnavailable = false
         gameOver = false
+        highScores = emptyList()
+        placedInTopThree = false
+        currentGameHighScore = null
+        scoreSaved = false
         lives = 3
         score = 0
         totalAnswered = 0

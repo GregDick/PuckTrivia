@@ -98,6 +98,9 @@ class MainActivity : ComponentActivity() {
                                 score = viewModel.score,
                                 correctAnswered = viewModel.correctAnswered,
                                 totalAnswered = viewModel.totalAnswered,
+                                highScores = viewModel.highScores,
+                                placedInTopThree = viewModel.placedInTopThree,
+                                currentGameEntry = viewModel.currentGameHighScore,
                                 onPlayAgain = viewModel::resetGame,
                                 modifier = Modifier.padding(innerPadding),
                             )
