@@ -15,8 +15,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -114,8 +114,13 @@ private fun HighScoreRow(
         if (isCurrentGame) append(", this game")
     }
     Surface(
+        // mergeDescendants groups the row's score and date Texts so TalkBack reads the row as
+        // a single unit. Unlike clearAndSetSemantics, the merge keeps the inner Text semantics
+        // discoverable by tests and the test framework's `onNodeWithText`.
         modifier =
-            modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = description },
+            modifier.fillMaxWidth().semantics(mergeDescendants = true) {
+                contentDescription = description
+            },
         color = background,
         shape = MaterialTheme.shapes.medium,
     ) {
