@@ -151,6 +151,8 @@ class PlayerPoolTest {
         return TriviaViewModel(
             OkHttpClient(),
             fakeProvider(skaterUrl, goalieUrl),
+            FakeHighScoreRepository(),
+            FixedTimeProvider(),
             testDispatcher,
             random,
         )

@@ -66,7 +66,13 @@ class TriviaNoTieTest {
     private fun createViewModel(): TriviaViewModel {
         val skaterUrl = mockWebServer.url("/v1/skater-stats-leaders/current?limit=-1").toString()
         val goalieUrl = mockWebServer.url("/v1/goalie-stats-leaders/current?limit=-1").toString()
-        return TriviaViewModel(OkHttpClient(), fakeProvider(skaterUrl, goalieUrl), testDispatcher)
+        return TriviaViewModel(
+            OkHttpClient(),
+            fakeProvider(skaterUrl, goalieUrl),
+            FakeHighScoreRepository(),
+            FixedTimeProvider(),
+            testDispatcher,
+        )
     }
 
     @Test
