@@ -2,7 +2,7 @@ package com.example.pucktrivia
 
 import com.example.pucktrivia.data.HighScoreRanking
 import com.example.pucktrivia.data.HighScoreRepository
-import com.example.pucktrivia.data.SubmitResult
+import com.example.pucktrivia.data.LeaderboardResult
 import com.example.pucktrivia.data.TimeProvider
 import com.example.pucktrivia.model.HighScore
 
@@ -19,13 +19,13 @@ class FakeHighScoreRepository(initialHistory: List<HighScore> = emptyList()) : H
 
     override suspend fun topThree(): List<HighScore> = HighScoreRanking.topThree(history)
 
-    override suspend fun submit(score: Int, endedAt: Long): SubmitResult {
+    override suspend fun submit(score: Int, endedAt: Long): LeaderboardResult {
         if (failOnSubmit) throw RuntimeException("simulated storage failure")
         val entry = HighScore(score = score, endedAt = endedAt)
         val placed = HighScoreRanking.placesInTopThree(history, entry)
         submissions.add(entry)
         history.add(entry)
-        return SubmitResult(
+        return LeaderboardResult(
             placedInTopThree = placed,
             topThree = HighScoreRanking.topThree(history),
         )

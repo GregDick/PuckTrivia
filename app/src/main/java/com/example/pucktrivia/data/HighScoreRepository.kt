@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
 /** Outcome of recording a completed game's score. */
-data class SubmitResult(
+data class LeaderboardResult(
     /** Whether the just-submitted score placed on the leaderboard. */
     val placedInTopThree: Boolean,
     /** The leaderboard after the submission, highest first, at most [TOP_SCORE_COUNT] entries. */
@@ -38,7 +38,7 @@ interface HighScoreRepository {
      * this score placed on it. A storage failure propagates as an exception; the caller is expected
      * to treat saving as best-effort.
      */
-    suspend fun submit(score: Int, endedAt: Long): SubmitResult
+    suspend fun submit(score: Int, endedAt: Long): LeaderboardResult
 }
 
 class DataStoreHighScoreRepository
@@ -51,7 +51,7 @@ constructor(
     override suspend fun topThree(): List<HighScore> =
         withContext(ioDispatcher) { HighScoreRanking.topThree(readHistory()) }
 
-    override suspend fun submit(score: Int, endedAt: Long): SubmitResult =
+    override suspend fun submit(score: Int, endedAt: Long): LeaderboardResult =
         withContext(ioDispatcher) {
             val entry = HighScore(score = score, endedAt = endedAt)
             var placed = false
@@ -63,7 +63,7 @@ constructor(
                 placed = HighScoreRanking.placesInTopThree(priorHistory, entry)
                 prefs[HISTORY_KEY] = HighScoreCodec.encode(priorHistory + entry)
             }
-            SubmitResult(
+            LeaderboardResult(
                 placedInTopThree = placed,
                 topThree =
                     HighScoreRanking.topThree(HighScoreCodec.decode(updatedPrefs[HISTORY_KEY])),
