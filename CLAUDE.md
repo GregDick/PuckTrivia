@@ -24,3 +24,7 @@ Puck Trivia is an Android app built with Kotlin and Jetpack Compose. It is curre
 - **Entry point**: `MainActivity` — single activity using `setContent` with Compose
 - **Build config**: Gradle Kotlin DSL with a version catalog at `gradle/libs.versions.toml`
 - **Min SDK**: 30, **Target SDK**: 36, **Gradle**: 9.1.0, **AGP**: 9.0.1, **Kotlin**: 2.0.21
+
+## Documentation Output
+
+Research summaries and reference docs produced by agents (e.g., the `researcher` agent) should be written to `claudeOutput/research/` using the filename pattern `{topic}-summary.md`. Existing examples: `dagger2-summary.md`, `nhl-api-overview.md`.
