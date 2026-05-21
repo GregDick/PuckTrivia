@@ -274,15 +274,38 @@ gcloud auth application-default login --impersonate-service-account SA_EMAIL
 # All journeys
 ./gradlew :app:testJourneysTestDefaultDebugTestSuite
 
-# Single journey
-JOURNEYS_FILTER=login_journey_test.journey.xml ./gradlew :app:testJourneysTestDefaultDebugTestSuite
+# Single journey — JOURNEYS_FILTER is a path RELATIVE TO THE SOURCE ROOT
+# (app/src/journeysTest/), not a bare filename. Include the journeys/ prefix.
+JOURNEYS_FILTER=journeys/login_journey_test.journey.xml ./gradlew :app:testJourneysTestDefaultDebugTestSuite
 
 # Subdirectory
-JOURNEYS_FILTER=home ./gradlew :app:testJourneysTestDefaultDebugTestSuite
+JOURNEYS_FILTER=journeys/home ./gradlew :app:testJourneysTestDefaultDebugTestSuite
 
 # Pre-installed app (not built from this project)
 JOURNEYS_CUSTOM_APP_ID=com.example.pucktrivia ./gradlew :app:testJourneysTestDefaultDebugTestSuite
 ```
+
+> **Filter gotcha (verified):** `JOURNEYS_FILTER` is matched as a path prefix relative
+> to the source root. A bare filename like `regular_season_quiz.journey.xml` matches
+> **nothing** when the file lives at `journeys/regular_season_quiz.journey.xml` — the
+> run reports `0 tests` with no error. Use the source-root-relative path
+> (`journeys/regular_season_quiz.journey.xml`) or omit the filter entirely.
+
+> **JDK 21 required (verified):** `journeys-junit-engine` 0.2.2 ships classes compiled
+> for Java 21 (class file version 65, e.g. `com.google.robo.platform.client.GrpcClient`).
+> The test executor JVM must be JDK 21+ or execution fails with
+> `UnsupportedClassVersionError`. Discovery still works on JDK 17, so the journey is
+> discovered then dies at execution. Scope JDK 21 to just the journeys task with a
+> Gradle toolchain rather than moving the whole build:
+> ```kotlin
+> tasks.withType<Test>().configureEach {
+>     if (name.startsWith("testJourneys")) {
+>         javaLauncher.set(javaToolchains.launcherFor {
+>             languageVersion.set(JavaLanguageVersion.of(21))
+>         })
+>     }
+> }
+> ```
 
 Gradle task pattern: `:app:testJourneysTest{SuiteName}{Variant}TestSuite`. Default suite name is `Default`.
 
@@ -412,59 +435,81 @@ Still needed:
 - [Android CLI and Skills Blog Post](https://developer.android.com/blog/posts/android-cli-build-android-apps-3x-faster-using-any-agent)
 - [Google Cloud Application Default Credentials](https://cloud.google.com/sdk/docs/install)
 
-## Run attempt 1
+## Run log — `regular_season_quiz.journey.xml` (2026-05-20)
 
-I've read the doc and checked this machine. Here's the situation.
+The journey **passed** from the CLI: 1 test, 0 failures, 100%, ~51 s. Getting there
+exposed two real blockers plus one misleading symptom — all now resolved.
 
-What it takes to run a journey test from the CLI
+### Blocker 1 — Google Cloud auth
 
-Per the doc (Part 2 → Execution, and the Gaps table), four things must be in place:
+Journey tests aren't ordinary Espresso tests: at runtime Gemini reads a screenshot and
+decides each action, so the Gradle task calls Gemini APIs and needs Application Default
+Credentials. Android Studio supplies this internally via the signed-in developer account
++ "Gemini in Android Studio"; the CLI Gradle task can't use that path.
 
-┌────────────────────────────────────────────────┬────────────────────────────────────────────────────────────────┐
-│                  Requirement                   │                     Status on this machine                     │
-├────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────┤
-│ Emulator running     e                         │ ✅ emulator-5554  is up                                         │
-├────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────┤
-│ testSuites block in build.gradle.kts           │ ✅ present (journeysTest suite, default target, debug variant)  │
-├────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────┤
-│ Journey file in app/src/journeysTest/journeys/ │ ✅  regular_season_quiz.journey.xml exists                      │
-├────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────┤
-│ Google Cloud auth for the Gemini API           │ ❌  missing — this is the blocker                               │
-└────────────────────────────────────────────────┴────────────────────────────────────────────────────────────────┘
+Fixed by the user running `gcloud auth application-default login`, which writes
+`~/.config/gcloud/application_default_credentials.json`. (The `--no-browser` /
+`--remote-bootstrap` variant failed with an `EOFError` in this non-interactive shell;
+the plain browser-based `gcloud auth application-default login` worked.)
 
-The blocker: authentication
+### Blocker 2 — JDK 21 required
 
-Journey tests aren't ordinary Espresso tests — at runtime Gemini reads a screenshot and decides each action, so the Gradle task calls the Gemini API and needs Google Cloud
-credentials (doc lines 257–269). On this machine:
+`journeys-junit-engine` 0.2.2 bundles classes compiled for Java 21 (class file
+version 65 — e.g. `com.google.robo.platform.client.GrpcClient`). This machine had only
+JDK 17 / JDK 11, so execution failed with:
 
-- gcloud CLI — not installed
-- ADC file ~/.config/gcloud/application_default_credentials.json — missing
-- GOOGLE_APPLICATION_CREDENTIALS env var — unset
+```
+java.lang.UnsupportedClassVersionError: com/google/robo/platform/client/GrpcClient
+has been compiled by a more recent version of the Java Runtime (class file version 65.0),
+this version of the Java Runtime only recognizes class file versions up to 61.0
+```
 
-That's almost certainly why my run "succeeded" but reported 0 tests — with no credentials the journeys engine has nothing to drive, so it discovers/runs nothing rather than
-throwing a hard auth error.
+Discovery still works on JDK 17 — the journey is found and `RUN_STARTED`, then dies
+inside `Proxy.connectToCrawlerBackend` at execution. Max class version in the engine
+jar is 65, so JDK 21 is sufficient (no need for 22+).
 
-When you run the journey manually in Android Studio, it works because the IDE supplies Gemini auth through your signed-in Google developer account + "Gemini in Android Studio"
+Fixed by installing Amazon Corretto 21 (arm64) into
+`~/Library/Java/JavaVirtualMachines/` and adding a **scoped Gradle toolchain** to
+`app/build.gradle.kts` so only the journeys task runs on 21:
 
-Journey tests aren't ordinary Espresso tests — at runtime Gemini reads a screenshot and decides each action, so the Gradle task calls the Gemini API and needs Google Cloud
-credentials (doc lines 257–269). On this machine:
+```kotlin
+tasks.withType<Test>().configureEach {
+    if (name.startsWith("testJourneys")) {
+        javaLauncher.set(javaToolchains.launcherFor {
+            languageVersion.set(JavaLanguageVersion.of(21))
+        })
+    }
+}
+```
 
-- gcloud CLI — not installed
-- ADC file ~/.config/gcloud/application_default_credentials.json — missing
-- GOOGLE_APPLICATION_CREDENTIALS env var — unset
+Verified: with the Gradle daemon on JDK 17, the test executor still forks with the
+Corretto 21 `java` binary, and unit tests are unaffected.
 
-That's almost certainly why my run "succeeded" but reported 0 tests — with no credentials the journeys engine has nothing to drive, so it discovers/runs nothing rather than
-throwing a hard auth error.
+### Misleading symptom — `0 tests` from a bad `JOURNEYS_FILTER`
 
-When you run the journey manually in Android Studio, it works because the IDE supplies Gemini auth through your signed-in Google developer account + "Gemini in Android Studio"
-(doc line 182). That's an IDE-internal path — the command-line Gradle task can't use it; it needs Application Default Credentials instead.
+Several runs reported `0 tests` with no error. Cause: `JOURNEYS_FILTER` is matched as a
+path **relative to the source root** (`app/src/journeysTest/`), not a bare filename.
+`JOURNEYS_FILTER=regular_season_quiz.journey.xml` matched nothing because the file is at
+`journeys/regular_season_quiz.journey.xml`. Use `JOURNEYS_FILTER=journeys/regular_season_quiz.journey.xml`,
+filter by subdirectory (`JOURNEYS_FILTER=journeys`), or omit the filter. Gradle's build
+cache also replayed stale `0 tests` results between runs — use `--rerun-tasks` when
+iterating.
 
-What I need from you
+### Working command
 
+```bash
+# JDK selection is handled by the toolchain in app/build.gradle.kts — no JAVA_HOME needed.
+./gradlew :app:testJourneysTestDefaultDebugTestSuite
+```
 
-1. Install the gcloud CLI — https://cloud.google.com/sdk/docs/install
-2. Run the login yourself — in this session you can type:
-   ! gcloud auth application-default login
-2. so the output lands in our conversation. Use the Google account that has Gemini in Android Studio access.
+The engine reads journey source folders from the `com.android.junit.engine.source.folders`
+system property (set by AGP to `app/src/journeysTest`) and target devices from
+`com.android.junit.engine.serial.ids`. Useful env vars: `JOURNEYS_FILTER`,
+`JOURNEYS_ENABLE_STDOUT_REPORT=true`. Per-step screenshots and protos land in
+`app/build/intermediates/debug/testJourneysTestDefaultDebugTestSuite/results/<serial>/journeys/<name>/`.
 
-Once ADC exists, I can run the journey from the CLI and actually fix it if a step fails.
+### Still open for CI
+
+The toolchain needs a JDK 21 already installed. On a clean CI runner without one, add the
+[foojay toolchain resolver](https://github.com/gradle/foojay-toolchains) so Gradle can
+auto-provision it; otherwise the journeys task fails to find a matching launcher.

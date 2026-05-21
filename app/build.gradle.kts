@@ -60,6 +60,19 @@ android {
     }
 }
 
+// The Journeys JUnit engine ships classes compiled for Java 21 (class file v65),
+// so the journeys test suite must run on a JDK 21+ launcher. Unit tests and the
+// rest of the build are left on whatever JDK the contributor/IDE is using.
+tasks.withType<Test>().configureEach {
+    if (name.startsWith("testJourneys")) {
+        javaLauncher.set(
+            javaToolchains.launcherFor {
+                languageVersion.set(JavaLanguageVersion.of(21))
+            }
+        )
+    }
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
