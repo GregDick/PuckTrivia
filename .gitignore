@@ -27,3 +27,6 @@ local.properties
 
 eval/results/
 eval/worktrees/
+
+# Journey test run artifacts
+**/journeys/.runs/
