@@ -24,6 +24,7 @@ local.properties
 .idea/material_theme_project_new.xml
 .idea/migrations.xml
 .idea/runConfigurations.xml
+.idea/androidTestResultsUserPreferences.xml
 
 eval/results/
 eval/worktrees/
