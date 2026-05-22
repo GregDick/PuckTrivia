@@ -41,12 +41,6 @@ android {
         unitTests.isReturnDefaultValues = true
         suites {
             create("journeysTest") {
-                assets {
-                }
-                targets {
-                    create("default") {
-                    }
-                }
                 useJunitEngine {
                     inputs += listOf(com.android.build.api.dsl.AgpTestSuiteInputParameters.TESTED_APKS)
                     includeEngines += listOf("journeys-test-engine")
