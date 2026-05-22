@@ -39,6 +39,35 @@ android {
     }
     testOptions {
         unitTests.isReturnDefaultValues = true
+        suites {
+            create("journeysTest") {
+                targets {
+                    create("default") {
+                    }
+                }
+                useJunitEngine {
+                    inputs += listOf(com.android.build.api.dsl.AgpTestSuiteInputParameters.TESTED_APKS)
+                    includeEngines += listOf("journeys-test-engine")
+                    enginesDependencies(libs.junit.platform.launcher)
+                    enginesDependencies(libs.junit.platform.engine)
+                    enginesDependencies(libs.journeys.junit.engine)
+                }
+                targetVariants += listOf("debug")
+            }
+        }
+    }
+}
+
+// The Journeys JUnit engine ships classes compiled for Java 21 (class file v65),
+// so the journeys test suite must run on a JDK 21+ launcher. Unit tests and the
+// rest of the build are left on whatever JDK the contributor/IDE is using.
+tasks.withType<Test>().configureEach {
+    if (name.startsWith("testJourneys")) {
+        javaLauncher.set(
+            javaToolchains.launcherFor {
+                languageVersion.set(JavaLanguageVersion.of(21))
+            }
+        )
     }
 }
 

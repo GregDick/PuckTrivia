@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<journey name="RegularSeasonQuizFlow">
+    <description>Verifies a user can start a Regular Season game, answer a trivia
+        question, and advance to the next round.</description>
+    <actions xml:space="preserve">
+        <action>Tap the 'Regular Season' button. Verify the trivia question screen
+            appears showing a 'Score:' label and a 'Lives:' label.</action>
+        <action>Verify a hockey trivia question is displayed above several player
+            answer buttons.</action>
+        <action>Tap the first player answer button. Verify that either 'Correct!'
+            or 'Incorrect!' feedback text appears near the top of the screen.</action>
+        <action>Tap the 'Next' button. Verify a new trivia question is displayed.</action>
+    </actions>
+</journey>
