@@ -16,8 +16,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.pucktrivia.model.SeasonMode
+import com.example.pucktrivia.ui.theme.PuckTriviaTheme
 
 @Composable
 fun StartScreen(onModeSelected: (SeasonMode) -> Unit, modifier: Modifier = Modifier) {
@@ -34,7 +37,8 @@ fun StartScreen(onModeSelected: (SeasonMode) -> Unit, modifier: Modifier = Modif
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = "Score points by answering correctly. Game ends after three wrong answers.",
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.titleLarge,
+            textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onBackground,
         )
         Spacer(modifier = Modifier.height(48.dp))
@@ -58,4 +62,10 @@ fun StartScreen(onModeSelected: (SeasonMode) -> Unit, modifier: Modifier = Modif
             Text(text = "Playoffs", style = MaterialTheme.typography.bodyLarge)
         }
     }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun StartScreenPreview() {
+    PuckTriviaTheme { StartScreen(onModeSelected = {}) }
 }
