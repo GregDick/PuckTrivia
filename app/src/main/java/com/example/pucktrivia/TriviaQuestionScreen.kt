@@ -249,7 +249,7 @@ private fun TriviaQuestionScreenLandscape(
 
         // Two-column content row
         Row(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.weight(1f).fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             // Left column: question text, vertically centered
