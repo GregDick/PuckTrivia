@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<journey name="LandscapeTwoColumnLayout">
+    <description>Verifies the two-column landscape layouts for the Question screen and the
+        Game Over screen. Rotates the device to landscape before starting, then plays through
+        a game to reach Game Over, checking that both screens render their expected content
+        in side-by-side columns without overlap.</description>
+    <actions xml:space="preserve">
+        <action>Rotate the device to landscape orientation.</action>
+        <action>Tap the 'Regular Season' button. Verify the trivia question screen appears
+            showing a 'Score:' label and a 'Lives:' label in a header row at the top of the
+            screen.</action>
+        <action>Verify a hockey trivia question text is visible on the left side of the
+            screen and player answer buttons are visible on the right side of the screen,
+            confirming the two-column landscape layout is active.</action>
+        <action>Tap the first player answer button. Verify that either 'Correct!' or
+            'Incorrect!' feedback text appears in the header area at the top of the screen,
+            and verify the 'Next' button appears on the right side of the screen.</action>
+        <action>Tap the 'Next' button. Verify a new trivia question is displayed with the
+            question on the left and answer buttons on the right.</action>
+        <action>Answer questions repeatedly — intentionally tapping wrong answers each time
+            to deplete all lives — until the Game Over screen appears. For each question: tap
+            any answer button, wait for feedback, then tap 'Next'. Repeat until 'Game Over'
+            text is displayed on screen.</action>
+        <action>Verify the Game Over screen shows 'Game Over' text and 'Score:' text in the
+            left column, and the 'Play Again' button is visible and tappable in the left
+            column.</action>
+        <action>Verify the right column of the Game Over screen shows 'High Scores' text
+            (if any scores exist) or is empty (if this is the first game). The screen must
+            not show any overlapping or clipped content.</action>
+        <action>Tap the 'Play Again' button. Verify the app returns to the start screen or
+            immediately shows a new trivia question screen.</action>
+    </actions>
+</journey>
