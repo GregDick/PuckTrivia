@@ -180,7 +180,8 @@ private fun TriviaQuestionScreenPortrait(
 
 /**
  * Landscape layout — status header spans full width above a two-column row. Left column: question
- * text (vertically centered). Right column: scrollable answer buttons + Next button.
+ * text (vertically centered when unanswered; shifted to the top with the Next button pinned beneath
+ * it once answered). Right column: scrollable answer buttons.
  */
 @Composable
 private fun TriviaQuestionScreenLandscape(
@@ -252,15 +253,31 @@ private fun TriviaQuestionScreenLandscape(
             modifier = Modifier.weight(1f).fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // Left column: question text, vertically centered
-            Box(
+            // Left column: question text + Next button. The question fills the available space
+            // (vertically centered when unanswered, top-aligned once answered) and the Next button
+            // is pinned to the bottom of the column so it never clips off the short landscape
+            // viewport.
+            Column(
                 modifier = Modifier.weight(1f).fillMaxHeight(),
-                contentAlignment = Alignment.Center,
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(text = questionText, style = MaterialTheme.typography.headlineSmall)
+                Box(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    contentAlignment = if (answered) Alignment.TopCenter else Alignment.Center,
+                ) {
+                    Text(text = questionText, style = MaterialTheme.typography.headlineSmall)
+                }
+                if (answered) {
+                    OutlinedButton(
+                        onClick = onNextRound,
+                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                    ) {
+                        Text(text = "Next", style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
             }
 
-            // Right column: scrollable answers + Next button.
+            // Right column: scrollable answer buttons only.
             // Do not apply fillMaxHeight here — verticalScroll needs the column to be
             // able to grow beyond the constrained height of the parent Row.
             Column(
@@ -276,18 +293,6 @@ private fun TriviaQuestionScreenLandscape(
                         selectedPlayerId = selectedPlayerId,
                         onAnswerSelected = onAnswerSelected,
                     )
-                }
-
-                // Fixed-height container so the Next button doesn't shift layout
-                Box(
-                    modifier = Modifier.fillMaxWidth().height(72.dp).padding(top = 24.dp),
-                    contentAlignment = Alignment.TopCenter,
-                ) {
-                    if (answered) {
-                        OutlinedButton(onClick = onNextRound, modifier = Modifier.fillMaxWidth()) {
-                            Text(text = "Next", style = MaterialTheme.typography.bodyLarge)
-                        }
-                    }
                 }
             }
         }
