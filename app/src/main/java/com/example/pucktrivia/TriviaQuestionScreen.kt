@@ -253,9 +253,9 @@ private fun TriviaQuestionScreenLandscape(
             modifier = Modifier.weight(1f).fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // Left column: question text + Next button. The question fills the available space
-            // (vertically centered when unanswered, top-aligned once answered) and the Next button
-            // is pinned to the bottom of the column so it never clips off the short landscape
+            // Left column: question text + Next button. The question is always top-aligned so it
+            // doesn't shift when the Next button appears, and the Next button is pinned near the
+            // bottom of the column (with bottom margin) so it never clips off the short landscape
             // viewport.
             Column(
                 modifier = Modifier.weight(1f).fillMaxHeight(),
@@ -263,14 +263,14 @@ private fun TriviaQuestionScreenLandscape(
             ) {
                 Box(
                     modifier = Modifier.fillMaxWidth().weight(1f),
-                    contentAlignment = if (answered) Alignment.TopCenter else Alignment.Center,
+                    contentAlignment = Alignment.TopCenter,
                 ) {
                     Text(text = questionText, style = MaterialTheme.typography.headlineSmall)
                 }
                 if (answered) {
                     OutlinedButton(
                         onClick = onNextRound,
-                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 24.dp),
                     ) {
                         Text(text = "Next", style = MaterialTheme.typography.bodyLarge)
                     }
