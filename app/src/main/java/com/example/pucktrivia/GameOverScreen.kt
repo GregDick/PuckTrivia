@@ -1,13 +1,17 @@
 package com.example.pucktrivia
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -29,6 +33,43 @@ import java.time.format.FormatStyle
 
 @Composable
 fun GameOverScreen(
+    score: Int,
+    correctAnswered: Int,
+    totalAnswered: Int,
+    highScores: List<HighScore>,
+    placedInTopThree: Boolean,
+    currentGameEntry: HighScore?,
+    onPlayAgain: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (isLandscape()) {
+        GameOverScreenLandscape(
+            score = score,
+            correctAnswered = correctAnswered,
+            totalAnswered = totalAnswered,
+            highScores = highScores,
+            placedInTopThree = placedInTopThree,
+            currentGameEntry = currentGameEntry,
+            onPlayAgain = onPlayAgain,
+            modifier = modifier,
+        )
+    } else {
+        GameOverScreenPortrait(
+            score = score,
+            correctAnswered = correctAnswered,
+            totalAnswered = totalAnswered,
+            highScores = highScores,
+            placedInTopThree = placedInTopThree,
+            currentGameEntry = currentGameEntry,
+            onPlayAgain = onPlayAgain,
+            modifier = modifier,
+        )
+    }
+}
+
+/** Portrait layout — unchanged from the original implementation. */
+@Composable
+private fun GameOverScreenPortrait(
     score: Int,
     correctAnswered: Int,
     totalAnswered: Int,
@@ -70,6 +111,109 @@ fun GameOverScreen(
         Button(onClick = onPlayAgain, modifier = Modifier.fillMaxWidth()) {
             Text(text = "Play Again", style = MaterialTheme.typography.bodyLarge)
         }
+    }
+}
+
+/**
+ * Landscape layout. When there are high scores, content splits into two equal (50/50) columns: left
+ * is the game-over summary (heading, score, accuracy, optional celebration) + Play Again button;
+ * right is the high-score list. Each column scrolls independently so content stays reachable on
+ * short landscape heights. When there are no high scores, the summary is centered as a single
+ * column instead of sitting beside an empty right column.
+ */
+@Composable
+private fun GameOverScreenLandscape(
+    score: Int,
+    correctAnswered: Int,
+    totalAnswered: Int,
+    highScores: List<HighScore>,
+    placedInTopThree: Boolean,
+    currentGameEntry: HighScore?,
+    onPlayAgain: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (highScores.isEmpty()) {
+        // No high scores: center the summary so the screen doesn't look lopsided with an empty
+        // right column.
+        Box(
+            modifier = modifier.fillMaxSize().padding(horizontal = 24.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(0.6f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                GameOverSummaryContent(
+                    score = score,
+                    correctAnswered = correctAnswered,
+                    totalAnswered = totalAnswered,
+                    placedInTopThree = placedInTopThree,
+                    onPlayAgain = onPlayAgain,
+                )
+            }
+        }
+        return
+    }
+
+    Row(
+        modifier = modifier.fillMaxSize().padding(top = 16.dp).padding(horizontal = 24.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        // Left column: summary + Play Again, independently scrollable
+        Column(
+            modifier =
+                Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(top = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            GameOverSummaryContent(
+                score = score,
+                correctAnswered = correctAnswered,
+                totalAnswered = totalAnswered,
+                placedInTopThree = placedInTopThree,
+                onPlayAgain = onPlayAgain,
+            )
+        }
+
+        // Right column: high-score list, independently scrollable
+        Column(
+            modifier =
+                Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(top = 16.dp)
+        ) {
+            HighScoreList(highScores = highScores, currentGameEntry = currentGameEntry)
+        }
+    }
+}
+
+/** Game-over summary shared by the landscape two-column and empty-state (centered) layouts. */
+@Composable
+private fun ColumnScope.GameOverSummaryContent(
+    score: Int,
+    correctAnswered: Int,
+    totalAnswered: Int,
+    placedInTopThree: Boolean,
+    onPlayAgain: () -> Unit,
+) {
+    Text(text = "Game Over", style = MaterialTheme.typography.headlineLarge)
+    Text(text = "Score: $score", style = MaterialTheme.typography.headlineMedium)
+    Text(
+        text = "$correctAnswered / $totalAnswered correct",
+        style = MaterialTheme.typography.headlineMedium,
+    )
+
+    if (placedInTopThree) {
+        Text(
+            text = "New top-3 score!",
+            style = MaterialTheme.typography.headlineSmall,
+            color = MaterialTheme.colorScheme.tertiary,
+            textAlign = TextAlign.Center,
+        )
+    }
+
+    Spacer(modifier = Modifier.height(16.dp))
+    Button(onClick = onPlayAgain, modifier = Modifier.fillMaxWidth()) {
+        Text(text = "Play Again", style = MaterialTheme.typography.bodyLarge)
     }
 }
 
@@ -215,6 +359,44 @@ private fun GameOverScreenEmptyPreview() {
             score = 0,
             correctAnswered = 0,
             totalAnswered = 5,
+            highScores = emptyList(),
+            placedInTopThree = false,
+            currentGameEntry = null,
+            onPlayAgain = {},
+        )
+    }
+}
+
+@Preview(showBackground = true, widthDp = 800, heightDp = 360)
+@Composable
+private fun GameOverScreenLandscapePreview() {
+    val entries =
+        listOf(
+            HighScore(score = 1200, endedAt = 1_715_000_000_000L),
+            HighScore(score = 800, endedAt = 1_714_000_000_000L),
+            HighScore(score = 500, endedAt = 1_713_000_000_000L),
+        )
+    PuckTriviaTheme {
+        GameOverScreen(
+            score = 1200,
+            correctAnswered = 12,
+            totalAnswered = 15,
+            highScores = entries,
+            placedInTopThree = true,
+            currentGameEntry = entries.first(),
+            onPlayAgain = {},
+        )
+    }
+}
+
+@Preview(showBackground = true, widthDp = 800, heightDp = 360)
+@Composable
+private fun GameOverScreenLandscapeEmptyPreview() {
+    PuckTriviaTheme {
+        GameOverScreen(
+            score = 300,
+            correctAnswered = 3,
+            totalAnswered = 8,
             highScores = emptyList(),
             placedInTopThree = false,
             currentGameEntry = null,
