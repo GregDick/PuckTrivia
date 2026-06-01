@@ -14,7 +14,8 @@
             confirming the two-column landscape layout is active.</action>
         <action>Tap the first player answer button. Verify that either 'Correct!' or
             'Incorrect!' feedback text appears in the header area at the top of the screen,
-            and verify the 'Next' button appears on the right side of the screen.</action>
+            and verify the 'Next' button appears on the left side of the screen, beneath the
+            question text (not in the right-hand answer column).</action>
         <action>Tap the 'Next' button. Verify a new trivia question is displayed with the
             question on the left and answer buttons on the right.</action>
         <action>Answer questions repeatedly — intentionally tapping wrong answers each time

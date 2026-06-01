@@ -31,3 +31,4 @@ eval/worktrees/
 
 # Journey test run artifacts
 **/journeys/.runs/
+.journey-runs/
