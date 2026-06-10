@@ -5,8 +5,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.pucktrivia.data.GameSnapshot
+import com.example.pucktrivia.data.GameStateCodec
 import com.example.pucktrivia.data.HighScoreRepository
 import com.example.pucktrivia.data.TimeProvider
 import com.example.pucktrivia.di.IoDispatcher
@@ -39,6 +42,7 @@ constructor(
     private val highScoreRepository: HighScoreRepository,
     private val timeProvider: TimeProvider,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+    private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
     private val random: kotlin.random.Random = kotlin.random.Random,
 ) : ViewModel() {
 
@@ -114,10 +118,26 @@ constructor(
     /** Guards against saving the same finished game's score more than once. */
     private var scoreSaved = false
 
+    /**
+     * True when state was restored from a snapshot that intentionally omitted the fetched datasets
+     * (strategy A — see [GameSnapshot]). The pools are empty after such a restore, so the next
+     * [prepareRound] must re-fetch the datasets before it can build a question rather than treating
+     * the empty pools as a fatal error.
+     */
+    private var poolsNeedRefetch = false
+
     var fatalError by mutableStateOf(false)
         private set
 
     var playoffsUnavailable by mutableStateOf(false)
+        private set
+
+    /**
+     * Top-three leaderboard loaded from durable storage for display on the Start screen. Populated
+     * on construction and refreshed after [resetGame] so returning from a finished game shows fresh
+     * scores.
+     */
+    var startScreenHighScores by mutableStateOf<List<HighScore>>(emptyList())
         private set
 
     val answered: Boolean
@@ -125,6 +145,77 @@ constructor(
 
     val isCorrect: Boolean
         get() = selectedPlayerId == correctPlayer?.id
+
+    init {
+        // Restore in-progress game from a prior process if a valid snapshot exists.
+        val snapshot = GameStateCodec.decode(savedStateHandle[KEY_GAME_SNAPSHOT])
+        if (snapshot != null && snapshot.choices.isNotEmpty()) {
+            applySnapshot(snapshot)
+        } else if (snapshot != null) {
+            // Snapshot present but no choices — process was killed mid-fetch. Clear and let the
+            // user restart from the Start screen rather than showing a broken state.
+            savedStateHandle.remove<String>(KEY_GAME_SNAPSHOT)
+        }
+        // Load the start-screen leaderboard non-blocking; it populates reactively.
+        loadStartScreenLeaderboard()
+    }
+
+    /** Applies a decoded [GameSnapshot] to all ViewModel state fields synchronously. */
+    private fun applySnapshot(snapshot: GameSnapshot) {
+        selectedMode = snapshot.selectedMode
+        score = snapshot.score
+        lives = snapshot.lives
+        roundNumber = snapshot.roundNumber
+        totalAnswered = snapshot.totalAnswered
+        correctAnswered = snapshot.correctAnswered
+        gameOver = snapshot.gameOver
+        selectedPlayerId = snapshot.selectedPlayerId
+        questionText = snapshot.questionText
+        statUnitLabel = snapshot.statUnitLabel
+        choices = snapshot.choices
+        correctPlayer = snapshot.choices.firstOrNull { it.id == snapshot.correctPlayerId }
+        usedIds = snapshot.usedIds
+        // Prevent a second score-save for an already-finished restored game.
+        if (snapshot.gameOver) scoreSaved = true
+        // The snapshot omits the fetched datasets (strategy A), so pools are empty after restore.
+        // Flag a re-fetch so the next prepareRound() rebuilds them instead of failing fatally.
+        poolsNeedRefetch = !snapshot.gameOver
+    }
+
+    /** Writes the current game state to [savedStateHandle] so it survives process death. */
+    private fun persistSnapshot() {
+        val mode = selectedMode ?: return
+        val correct = correctPlayer ?: return
+        savedStateHandle[KEY_GAME_SNAPSHOT] =
+            GameStateCodec.encode(
+                GameSnapshot(
+                    selectedMode = mode,
+                    score = score,
+                    lives = lives,
+                    roundNumber = roundNumber,
+                    totalAnswered = totalAnswered,
+                    correctAnswered = correctAnswered,
+                    gameOver = gameOver,
+                    selectedPlayerId = selectedPlayerId,
+                    questionText = questionText,
+                    statUnitLabel = statUnitLabel,
+                    correctPlayerId = correct.id,
+                    choices = choices,
+                    usedIds = usedIds,
+                )
+            )
+    }
+
+    /** Loads the persisted leaderboard from DataStore for the Start screen (non-blocking). */
+    private fun loadStartScreenLeaderboard() {
+        viewModelScope.launch {
+            try {
+                startScreenHighScores = highScoreRepository.topThree()
+            } catch (e: Exception) {
+                Log.e("TriviaViewModel", "Failed to load start-screen leaderboard", e)
+            }
+        }
+    }
 
     fun startGame(mode: SeasonMode) {
         if (isLoading) return
@@ -138,17 +229,7 @@ constructor(
         playoffsUnavailable = false
         viewModelScope.launch {
             try {
-                val skaterData: Map<String, List<SkaterStatLeader>>
-                val goalieData: Map<String, List<GoalieStatLeader>>
-                coroutineScope {
-                    val skaterDeferred = async { fetchSkaterStats(mode) }
-                    val goalieDeferred = async { fetchGoalieStats(mode) }
-                    skaterData = skaterDeferred.await()
-                    goalieData = goalieDeferred.await()
-                }
-                statsData = skaterData
-                goalieStatsData = goalieData
-                buildPools(skaterData, goalieData)
+                fetchAndBuildPools(mode)
                 if (pools.isEmpty() && mode == SeasonMode.Playoffs) {
                     playoffsUnavailable = true
                 } else {
@@ -156,6 +237,58 @@ constructor(
                 }
             } catch (e: Exception) {
                 Log.e("TriviaViewModel", "Failed to fetch stats", e)
+                loadError = true
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
+    /**
+     * Fetches the skater and goalie datasets for [mode] in parallel and rebuilds [pools]. Shared by
+     * the initial [startGame] fetch and the post-restore re-fetch ([refetchPoolsThenPrepare]).
+     */
+    private suspend fun fetchAndBuildPools(mode: SeasonMode) {
+        val skaterData: Map<String, List<SkaterStatLeader>>
+        val goalieData: Map<String, List<GoalieStatLeader>>
+        coroutineScope {
+            val skaterDeferred = async { fetchSkaterStats(mode) }
+            val goalieDeferred = async { fetchGoalieStats(mode) }
+            skaterData = skaterDeferred.await()
+            goalieData = goalieDeferred.await()
+        }
+        statsData = skaterData
+        goalieStatsData = goalieData
+        buildPools(skaterData, goalieData)
+    }
+
+    /**
+     * Re-fetches the datasets dropped on process death (strategy A) and then resumes preparing the
+     * round, preserving the restored counters and used-player history. Shows the loading spinner
+     * while the fetch runs so the player never sees a broken state.
+     */
+    private fun refetchPoolsThenPrepare() {
+        val mode =
+            selectedMode
+                ?: run {
+                    fatalError = true
+                    return
+                }
+        poolsNeedRefetch = false
+        isLoading = true
+        loadError = false
+        fatalError = false
+        playoffsUnavailable = false
+        viewModelScope.launch {
+            try {
+                fetchAndBuildPools(mode)
+                if (pools.isEmpty() && mode == SeasonMode.Playoffs) {
+                    playoffsUnavailable = true
+                } else {
+                    prepareRound()
+                }
+            } catch (e: Exception) {
+                Log.e("TriviaViewModel", "Re-fetch after restore failed", e)
                 loadError = true
             } finally {
                 isLoading = false
@@ -172,6 +305,7 @@ constructor(
         } else {
             lives = maxOf(0, lives - 1)
         }
+        persistSnapshot()
     }
 
     fun nextRound() {
@@ -184,6 +318,7 @@ constructor(
         if (lives == 0) {
             gameOver = true
             saveScore()
+            persistSnapshot()
             return
         }
         prepareRound()
@@ -213,6 +348,8 @@ constructor(
     }
 
     fun resetGame() {
+        // Clear the saved snapshot so a subsequent process kill does not restore this game.
+        savedStateHandle.remove<String>(KEY_GAME_SNAPSHOT)
         selectedMode = null
         isLoading = false
         loadError = false
@@ -223,6 +360,7 @@ constructor(
         placedInTopThree = false
         currentGameHighScore = null
         scoreSaved = false
+        poolsNeedRefetch = false
         lives = 3
         score = 0
         totalAnswered = 0
@@ -235,6 +373,8 @@ constructor(
         choices = emptyList()
         correctPlayer = null
         questionText = ""
+        // Refresh the start-screen leaderboard so a score just finished shows up.
+        loadStartScreenLeaderboard()
     }
 
     private fun buildPools(
@@ -261,6 +401,11 @@ constructor(
 
     private fun prepareRound() {
         if (pools.isEmpty()) {
+            if (poolsNeedRefetch) {
+                // Pools were dropped on process death; rebuild them, then this method runs again.
+                refetchPoolsThenPrepare()
+                return
+            }
             Log.e("TriviaViewModel", "No pools available — cannot prepare round")
             fatalError = true
             return
@@ -291,6 +436,7 @@ constructor(
         usedIds = usedIds + (type to (currentUsed + picked.map { it.id }))
         choices = picked
         correctPlayer = picked.maxByOrNull { it.value }
+        persistSnapshot()
     }
 
     private fun greedyPick(pool: List<StatLeader>, usedIds: Set<Int>): List<StatLeader> {
@@ -365,4 +511,9 @@ constructor(
             }
             result
         }
+
+    companion object {
+        /** [SavedStateHandle] key for the serialised in-progress game snapshot. */
+        internal const val KEY_GAME_SNAPSHOT = "game_snapshot"
+    }
 }

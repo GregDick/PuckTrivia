@@ -83,7 +83,7 @@ class GoalieQuestionTypeTest {
             FakeHighScoreRepository(),
             FixedTimeProvider(),
             testDispatcher,
-            random,
+            random = random,
         )
     }
 

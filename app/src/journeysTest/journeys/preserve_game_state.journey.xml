@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<journey name="PreserveGameState">
+    <description>Verifies that the Start screen shows a leaderboard after a completed game, and
+        that basic game flow (start, answer, next round) works correctly after the feature is
+        introduced. Process-death restore is verified by unit tests; this journey covers the
+        happy-path user-facing acceptance criteria observable via UI.</description>
+    <actions xml:space="preserve">
+        <action>Verify the Start screen is visible, showing the 'Puck Trivia' title and a
+            'Regular Season' button.</action>
+        <action>Tap the 'Regular Season' button. Verify the trivia question screen appears showing
+            a 'Score:' label and a 'Lives:' label.</action>
+        <action>Verify a hockey trivia question is displayed above several player answer
+            buttons.</action>
+        <action>Tap the first player answer button. Verify that answer feedback appears — either
+            a correct or incorrect color change on the selected button — and that the 'Next'
+            button becomes visible.</action>
+        <action>Tap the 'Next' button. Verify a new trivia question is displayed with the score
+            or lives updated as appropriate.</action>
+        <action>Continue answering questions incorrectly until the game ends. Verify the Game Over
+            screen appears showing a final score and a 'Play Again' button.</action>
+        <action>Tap the 'Play Again' button. Verify the Start screen appears again. Verify that a
+            'High Scores' leaderboard section is now visible on the Start screen, showing at least
+            one score entry from the completed game.</action>
+    </actions>
+</journey>

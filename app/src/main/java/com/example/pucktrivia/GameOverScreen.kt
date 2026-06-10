@@ -218,7 +218,7 @@ private fun ColumnScope.GameOverSummaryContent(
 }
 
 @Composable
-private fun HighScoreList(
+internal fun HighScoreList(
     highScores: List<HighScore>,
     currentGameEntry: HighScore?,
     modifier: Modifier = Modifier,

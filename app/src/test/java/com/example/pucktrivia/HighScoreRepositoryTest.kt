@@ -50,6 +50,42 @@ class HighScoreRepositoryTest {
         }
 
     @Test
+    fun `score submitted to one repository instance is visible from a fresh instance on the same store`() =
+        runTest(testDispatcher) {
+            // Simulates an app restart: write via instance A, read via a brand-new instance B
+            // pointing at the same backing file — the score must survive.
+            val dataStore = newDataStore("restart-sim")
+            val repoA = DataStoreHighScoreRepository(dataStore, testDispatcher)
+            repoA.submit(score = 500, endedAt = 1_715_000_000_000L)
+            repoA.submit(score = 300, endedAt = 1_714_000_000_000L)
+
+            // Construct a second repository on the same DataStore (same file).
+            val repoB = DataStoreHighScoreRepository(dataStore, testDispatcher)
+            val top = repoB.topThree()
+
+            assertEquals(2, top.size)
+            assertEquals(500, top[0].score)
+            assertEquals(300, top[1].score)
+        }
+
+    @Test
+    fun `unknown schema version in store decodes to empty rather than crashing`() =
+        runTest(testDispatcher) {
+            val dataStore = newDataStore("unknown-schema")
+            // Inject a future-schema payload directly.
+            dataStore.edit { it[historyKey] = "v99;100,1715000000000" }
+            val repository = DataStoreHighScoreRepository(dataStore, testDispatcher)
+
+            // Must return empty history, not crash.
+            assertTrue(repository.topThree().isEmpty())
+
+            // A subsequent submit starts a clean history.
+            val result = repository.submit(score = 42, endedAt = 1L)
+            assertTrue(result.placedInTopThree)
+            assertEquals(listOf(42), result.topThree.map { it.score })
+        }
+
+    @Test
     fun `topThree on a fresh store is empty`() =
         runTest(testDispatcher) {
             val repository = DataStoreHighScoreRepository(newDataStore("empty"), testDispatcher)

@@ -39,6 +39,7 @@ class MainActivity : ComponentActivity() {
                             StartScreen(
                                 onModeSelected = viewModel::startGame,
                                 modifier = Modifier.padding(innerPadding),
+                                highScores = viewModel.startScreenHighScores,
                             )
                         }
                         viewModel.isLoading -> {
