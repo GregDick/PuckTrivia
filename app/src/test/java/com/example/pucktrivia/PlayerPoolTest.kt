@@ -154,7 +154,7 @@ class PlayerPoolTest {
             FakeHighScoreRepository(),
             FixedTimeProvider(),
             testDispatcher,
-            random,
+            random = random,
         )
     }
 

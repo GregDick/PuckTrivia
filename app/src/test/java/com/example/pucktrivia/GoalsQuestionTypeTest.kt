@@ -97,7 +97,7 @@ class GoalsQuestionTypeTest {
             FakeHighScoreRepository(),
             FixedTimeProvider(),
             testDispatcher,
-            random,
+            random = random,
         )
     }
 

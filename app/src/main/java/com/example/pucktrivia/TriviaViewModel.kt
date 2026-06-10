@@ -5,8 +5,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.pucktrivia.data.GameSnapshot
+import com.example.pucktrivia.data.GameStateCodec
 import com.example.pucktrivia.data.HighScoreRepository
 import com.example.pucktrivia.data.TimeProvider
 import com.example.pucktrivia.di.IoDispatcher
@@ -39,6 +42,7 @@ constructor(
     private val highScoreRepository: HighScoreRepository,
     private val timeProvider: TimeProvider,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+    private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
     private val random: kotlin.random.Random = kotlin.random.Random,
 ) : ViewModel() {
 
@@ -120,11 +124,87 @@ constructor(
     var playoffsUnavailable by mutableStateOf(false)
         private set
 
+    /**
+     * Top-three leaderboard loaded from durable storage for display on the Start screen. Populated
+     * on construction and refreshed after [resetGame] so returning from a finished game shows fresh
+     * scores.
+     */
+    var startScreenHighScores by mutableStateOf<List<HighScore>>(emptyList())
+        private set
+
     val answered: Boolean
         get() = selectedPlayerId != null
 
     val isCorrect: Boolean
         get() = selectedPlayerId == correctPlayer?.id
+
+    init {
+        // Restore in-progress game from a prior process if a valid snapshot exists.
+        val snapshot = GameStateCodec.decode(savedStateHandle[KEY_GAME_SNAPSHOT])
+        if (snapshot != null && snapshot.choices.isNotEmpty()) {
+            applySnapshot(snapshot)
+        } else if (snapshot != null) {
+            // Snapshot present but no choices — process was killed mid-fetch. Clear and let the
+            // user restart from the Start screen rather than showing a broken state.
+            savedStateHandle.remove<String>(KEY_GAME_SNAPSHOT)
+        }
+        // Load the start-screen leaderboard non-blocking; it populates reactively.
+        loadStartScreenLeaderboard()
+    }
+
+    /** Applies a decoded [GameSnapshot] to all ViewModel state fields synchronously. */
+    private fun applySnapshot(snapshot: GameSnapshot) {
+        selectedMode = snapshot.selectedMode
+        score = snapshot.score
+        lives = snapshot.lives
+        roundNumber = snapshot.roundNumber
+        totalAnswered = snapshot.totalAnswered
+        correctAnswered = snapshot.correctAnswered
+        gameOver = snapshot.gameOver
+        selectedPlayerId = snapshot.selectedPlayerId
+        questionText = snapshot.questionText
+        statUnitLabel = snapshot.statUnitLabel
+        choices = snapshot.choices
+        correctPlayer = snapshot.choices.firstOrNull { it.id == snapshot.correctPlayerId }
+        usedIds = snapshot.usedIds
+        // Prevent a second score-save for an already-finished restored game.
+        if (snapshot.gameOver) scoreSaved = true
+    }
+
+    /** Writes the current game state to [savedStateHandle] so it survives process death. */
+    private fun persistSnapshot() {
+        val mode = selectedMode ?: return
+        val correct = correctPlayer ?: return
+        savedStateHandle[KEY_GAME_SNAPSHOT] =
+            GameStateCodec.encode(
+                GameSnapshot(
+                    selectedMode = mode,
+                    score = score,
+                    lives = lives,
+                    roundNumber = roundNumber,
+                    totalAnswered = totalAnswered,
+                    correctAnswered = correctAnswered,
+                    gameOver = gameOver,
+                    selectedPlayerId = selectedPlayerId,
+                    questionText = questionText,
+                    statUnitLabel = statUnitLabel,
+                    correctPlayerId = correct.id,
+                    choices = choices,
+                    usedIds = usedIds,
+                )
+            )
+    }
+
+    /** Loads the persisted leaderboard from DataStore for the Start screen (non-blocking). */
+    private fun loadStartScreenLeaderboard() {
+        viewModelScope.launch {
+            try {
+                startScreenHighScores = highScoreRepository.topThree()
+            } catch (e: Exception) {
+                Log.e("TriviaViewModel", "Failed to load start-screen leaderboard", e)
+            }
+        }
+    }
 
     fun startGame(mode: SeasonMode) {
         if (isLoading) return
@@ -172,6 +252,7 @@ constructor(
         } else {
             lives = maxOf(0, lives - 1)
         }
+        persistSnapshot()
     }
 
     fun nextRound() {
@@ -184,6 +265,7 @@ constructor(
         if (lives == 0) {
             gameOver = true
             saveScore()
+            persistSnapshot()
             return
         }
         prepareRound()
@@ -213,6 +295,8 @@ constructor(
     }
 
     fun resetGame() {
+        // Clear the saved snapshot so a subsequent process kill does not restore this game.
+        savedStateHandle.remove<String>(KEY_GAME_SNAPSHOT)
         selectedMode = null
         isLoading = false
         loadError = false
@@ -235,6 +319,8 @@ constructor(
         choices = emptyList()
         correctPlayer = null
         questionText = ""
+        // Refresh the start-screen leaderboard so a score just finished shows up.
+        loadStartScreenLeaderboard()
     }
 
     private fun buildPools(
@@ -291,6 +377,7 @@ constructor(
         usedIds = usedIds + (type to (currentUsed + picked.map { it.id }))
         choices = picked
         correctPlayer = picked.maxByOrNull { it.value }
+        persistSnapshot()
     }
 
     private fun greedyPick(pool: List<StatLeader>, usedIds: Set<Int>): List<StatLeader> {
@@ -365,4 +452,9 @@ constructor(
             }
             result
         }
+
+    companion object {
+        /** [SavedStateHandle] key for the serialised in-progress game snapshot. */
+        internal const val KEY_GAME_SNAPSHOT = "game_snapshot"
+    }
 }
