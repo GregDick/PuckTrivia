@@ -102,21 +102,6 @@ class TriviaViewModelSavedStateTest {
             savedStateHandle = handle,
         )
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
-
-    /** Drives [vm] through one full round (start + answer), returns the handle for re-use. */
-    private suspend fun driveOneRound(
-        vm: TriviaViewModel,
-        answerCorrectly: Boolean = true,
-    ): SavedStateHandle {
-        // Nothing to return — caller already holds the handle.
-        val correctId = vm.correctPlayer!!.id
-        val targetId =
-            if (answerCorrectly) correctId else vm.choices.first { it.id != correctId }.id
-        vm.selectAnswer(targetId)
-        return SavedStateHandle() // unused; handle is passed by reference
-    }
-
     // ── Tests ─────────────────────────────────────────────────────────────────
 
     @Test
