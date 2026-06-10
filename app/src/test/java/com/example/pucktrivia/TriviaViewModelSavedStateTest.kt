@@ -289,6 +289,38 @@ class TriviaViewModelSavedStateTest {
         }
 
     @Test
+    fun `restored game can continue past Next via dataset re-fetch`() =
+        runTest(testDispatcher) {
+            enqueueDefaultResponse()
+            val handle = SavedStateHandle()
+            val vm1 = createViewModel(handle)
+            vm1.startGame(SeasonMode.RegularSeason)
+            advanceUntilIdle()
+
+            // Answer the current question but do not advance.
+            vm1.selectAnswer(vm1.correctPlayer!!.id)
+
+            // Simulate process death: a fresh ViewModel restores from the handle. Its pools are
+            // empty (strategy A omits the datasets), so continuing must trigger a re-fetch rather
+            // than failing fatally.
+            val vm2 = createViewModel(handle)
+            advanceUntilIdle()
+            assertTrue("pools should be empty immediately after restore", vm2.pools.isEmpty())
+
+            // Enqueue the datasets the re-fetch will request, then advance to the next round.
+            enqueueDefaultResponse()
+            vm2.nextRound()
+            advanceUntilIdle()
+
+            assertFalse("should not hit fatalError after restore", vm2.fatalError)
+            assertFalse("should not be loading once re-fetch completes", vm2.isLoading)
+            assertTrue("pools should be rebuilt by the re-fetch", vm2.pools.isNotEmpty())
+            assertEquals("should present a fresh 3-choice question", 3, vm2.choices.size)
+            assertNull("selection should be cleared on the new question", vm2.selectedPlayerId)
+            assertNotNull("correctPlayer should be set", vm2.correctPlayer)
+        }
+
+    @Test
     fun `cold start with empty handle shows Start screen state`() =
         runTest(testDispatcher) {
             val vm = createViewModel(SavedStateHandle())

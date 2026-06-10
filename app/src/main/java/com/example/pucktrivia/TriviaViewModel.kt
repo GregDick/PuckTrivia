@@ -118,6 +118,14 @@ constructor(
     /** Guards against saving the same finished game's score more than once. */
     private var scoreSaved = false
 
+    /**
+     * True when state was restored from a snapshot that intentionally omitted the fetched datasets
+     * (strategy A — see [GameSnapshot]). The pools are empty after such a restore, so the next
+     * [prepareRound] must re-fetch the datasets before it can build a question rather than treating
+     * the empty pools as a fatal error.
+     */
+    private var poolsNeedRefetch = false
+
     var fatalError by mutableStateOf(false)
         private set
 
@@ -169,6 +177,9 @@ constructor(
         usedIds = snapshot.usedIds
         // Prevent a second score-save for an already-finished restored game.
         if (snapshot.gameOver) scoreSaved = true
+        // The snapshot omits the fetched datasets (strategy A), so pools are empty after restore.
+        // Flag a re-fetch so the next prepareRound() rebuilds them instead of failing fatally.
+        poolsNeedRefetch = !snapshot.gameOver
     }
 
     /** Writes the current game state to [savedStateHandle] so it survives process death. */
@@ -218,17 +229,7 @@ constructor(
         playoffsUnavailable = false
         viewModelScope.launch {
             try {
-                val skaterData: Map<String, List<SkaterStatLeader>>
-                val goalieData: Map<String, List<GoalieStatLeader>>
-                coroutineScope {
-                    val skaterDeferred = async { fetchSkaterStats(mode) }
-                    val goalieDeferred = async { fetchGoalieStats(mode) }
-                    skaterData = skaterDeferred.await()
-                    goalieData = goalieDeferred.await()
-                }
-                statsData = skaterData
-                goalieStatsData = goalieData
-                buildPools(skaterData, goalieData)
+                fetchAndBuildPools(mode)
                 if (pools.isEmpty() && mode == SeasonMode.Playoffs) {
                     playoffsUnavailable = true
                 } else {
@@ -236,6 +237,58 @@ constructor(
                 }
             } catch (e: Exception) {
                 Log.e("TriviaViewModel", "Failed to fetch stats", e)
+                loadError = true
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
+    /**
+     * Fetches the skater and goalie datasets for [mode] in parallel and rebuilds [pools]. Shared by
+     * the initial [startGame] fetch and the post-restore re-fetch ([refetchPoolsThenPrepare]).
+     */
+    private suspend fun fetchAndBuildPools(mode: SeasonMode) {
+        val skaterData: Map<String, List<SkaterStatLeader>>
+        val goalieData: Map<String, List<GoalieStatLeader>>
+        coroutineScope {
+            val skaterDeferred = async { fetchSkaterStats(mode) }
+            val goalieDeferred = async { fetchGoalieStats(mode) }
+            skaterData = skaterDeferred.await()
+            goalieData = goalieDeferred.await()
+        }
+        statsData = skaterData
+        goalieStatsData = goalieData
+        buildPools(skaterData, goalieData)
+    }
+
+    /**
+     * Re-fetches the datasets dropped on process death (strategy A) and then resumes preparing the
+     * round, preserving the restored counters and used-player history. Shows the loading spinner
+     * while the fetch runs so the player never sees a broken state.
+     */
+    private fun refetchPoolsThenPrepare() {
+        val mode =
+            selectedMode
+                ?: run {
+                    fatalError = true
+                    return
+                }
+        poolsNeedRefetch = false
+        isLoading = true
+        loadError = false
+        fatalError = false
+        playoffsUnavailable = false
+        viewModelScope.launch {
+            try {
+                fetchAndBuildPools(mode)
+                if (pools.isEmpty() && mode == SeasonMode.Playoffs) {
+                    playoffsUnavailable = true
+                } else {
+                    prepareRound()
+                }
+            } catch (e: Exception) {
+                Log.e("TriviaViewModel", "Re-fetch after restore failed", e)
                 loadError = true
             } finally {
                 isLoading = false
@@ -307,6 +360,7 @@ constructor(
         placedInTopThree = false
         currentGameHighScore = null
         scoreSaved = false
+        poolsNeedRefetch = false
         lives = 3
         score = 0
         totalAnswered = 0
@@ -347,6 +401,11 @@ constructor(
 
     private fun prepareRound() {
         if (pools.isEmpty()) {
+            if (poolsNeedRefetch) {
+                // Pools were dropped on process death; rebuild them, then this method runs again.
+                refetchPoolsThenPrepare()
+                return
+            }
             Log.e("TriviaViewModel", "No pools available — cannot prepare round")
             fatalError = true
             return
