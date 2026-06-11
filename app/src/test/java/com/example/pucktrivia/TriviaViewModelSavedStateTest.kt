@@ -1,7 +1,8 @@
 package com.example.pucktrivia
 
 import androidx.lifecycle.SavedStateHandle
-import com.example.pucktrivia.data.GameStateCodec
+import com.example.pucktrivia.data.GameSnapshot
+import com.example.pucktrivia.data.GameSnapshotSerializer
 import com.example.pucktrivia.di.StatsUrlProvider
 import com.example.pucktrivia.model.SeasonMode
 import kotlinx.coroutines.Dispatchers
@@ -102,6 +103,14 @@ class TriviaViewModelSavedStateTest {
             savedStateHandle = handle,
         )
 
+    /**
+     * Decodes the snapshot the ViewModel stored in [handle]. The handle holds a [ByteArray] (not
+     * the [GameSnapshot] directly — see [GameSnapshotSerializer]'s KDoc), so tests must deserialise
+     * it the same way the restore path does.
+     */
+    private fun readSnapshot(handle: SavedStateHandle): GameSnapshot? =
+        GameSnapshotSerializer.fromBytes(handle.get<ByteArray>(TriviaViewModel.KEY_GAME_SNAPSHOT))
+
     // ── Tests ─────────────────────────────────────────────────────────────────
 
     @Test
@@ -113,10 +122,8 @@ class TriviaViewModelSavedStateTest {
             vm.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
-            val encoded = handle.get<String>(TriviaViewModel.KEY_GAME_SNAPSHOT)
-            assertNotNull("Snapshot should be written after startGame", encoded)
-            val snapshot = GameStateCodec.decode(encoded)
-            assertNotNull(snapshot)
+            val snapshot = readSnapshot(handle)
+            assertNotNull("Snapshot should be written after startGame", snapshot)
             assertEquals(SeasonMode.RegularSeason, snapshot!!.selectedMode)
             assertEquals(3, snapshot.choices.size)
         }
@@ -133,8 +140,7 @@ class TriviaViewModelSavedStateTest {
             val correctId = vm.correctPlayer!!.id
             vm.selectAnswer(correctId)
 
-            val snapshot =
-                GameStateCodec.decode(handle.get<String>(TriviaViewModel.KEY_GAME_SNAPSHOT))
+            val snapshot = readSnapshot(handle)
             assertNotNull(snapshot)
             assertEquals(correctId, snapshot!!.selectedPlayerId)
             assertEquals(100, snapshot.score)
@@ -262,13 +268,15 @@ class TriviaViewModelSavedStateTest {
         }
 
     @Test
-    fun `corrupt snapshot in handle starts fresh rather than crashing`() =
+    fun `unexpected handle entry type starts fresh rather than crashing`() =
         runTest(testDispatcher) {
+            // An entry of the wrong type must not crash restore: the safe cast to GameSnapshot
+            // yields null and the app starts fresh.
             val handle = SavedStateHandle(mapOf(TriviaViewModel.KEY_GAME_SNAPSHOT to "not-valid"))
             val vm = createViewModel(handle)
             advanceUntilIdle()
 
-            assertNull("selectedMode should be null with corrupt snapshot", vm.selectedMode)
+            assertNull("selectedMode should be null with an unusable snapshot", vm.selectedMode)
             assertFalse("should not be loading", vm.isLoading)
             assertTrue("choices should be empty", vm.choices.isEmpty())
         }

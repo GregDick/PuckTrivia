@@ -9,7 +9,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.pucktrivia.data.GameSnapshot
-import com.example.pucktrivia.data.GameStateCodec
+import com.example.pucktrivia.data.GameSnapshotSerializer
 import com.example.pucktrivia.data.HighScoreRepository
 import com.example.pucktrivia.data.TimeProvider
 import com.example.pucktrivia.di.IoDispatcher
@@ -147,14 +147,20 @@ constructor(
         get() = selectedPlayerId == correctPlayer?.id
 
     init {
-        // Restore in-progress game from a prior process if a valid snapshot exists.
-        val snapshot = GameStateCodec.decode(savedStateHandle[KEY_GAME_SNAPSHOT])
+        // Restore in-progress game from a prior process if a valid snapshot exists. The snapshot
+        // is stored as a ByteArray and deserialised here by GameSnapshotSerializer, which returns
+        // null for any unreadable payload (stale class shape, corrupt bytes) — see its KDoc for
+        // why the handle must not hold the Serializable directly. The safe cast guards against an
+        // unexpected entry type.
+        val bytes = savedStateHandle.get<Any?>(KEY_GAME_SNAPSHOT) as? ByteArray
+        val snapshot = GameSnapshotSerializer.fromBytes(bytes)
         if (snapshot != null && snapshot.choices.isNotEmpty()) {
             applySnapshot(snapshot)
-        } else if (snapshot != null) {
-            // Snapshot present but no choices — process was killed mid-fetch. Clear and let the
-            // user restart from the Start screen rather than showing a broken state.
-            savedStateHandle.remove<String>(KEY_GAME_SNAPSHOT)
+        } else if (savedStateHandle.contains(KEY_GAME_SNAPSHOT)) {
+            // An unusable entry: either a snapshot with no choices (process killed mid-fetch) or
+            // an unreadable/wrong-type value. Clear it and let the user restart from the Start
+            // screen rather than showing a broken state or re-logging on every construction.
+            savedStateHandle.remove<ByteArray>(KEY_GAME_SNAPSHOT)
         }
         // Load the start-screen leaderboard non-blocking; it populates reactively.
         loadStartScreenLeaderboard()
@@ -187,7 +193,7 @@ constructor(
         val mode = selectedMode ?: return
         val correct = correctPlayer ?: return
         savedStateHandle[KEY_GAME_SNAPSHOT] =
-            GameStateCodec.encode(
+            GameSnapshotSerializer.toBytes(
                 GameSnapshot(
                     selectedMode = mode,
                     score = score,
@@ -349,7 +355,7 @@ constructor(
 
     fun resetGame() {
         // Clear the saved snapshot so a subsequent process kill does not restore this game.
-        savedStateHandle.remove<String>(KEY_GAME_SNAPSHOT)
+        savedStateHandle.remove<ByteArray>(KEY_GAME_SNAPSHOT)
         selectedMode = null
         isLoading = false
         loadError = false
