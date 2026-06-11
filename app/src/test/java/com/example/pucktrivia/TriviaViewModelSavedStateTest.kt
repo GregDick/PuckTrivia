@@ -2,6 +2,7 @@ package com.example.pucktrivia
 
 import androidx.lifecycle.SavedStateHandle
 import com.example.pucktrivia.data.GameSnapshot
+import com.example.pucktrivia.data.GameSnapshotSerializer
 import com.example.pucktrivia.di.StatsUrlProvider
 import com.example.pucktrivia.model.SeasonMode
 import kotlinx.coroutines.Dispatchers
@@ -102,6 +103,14 @@ class TriviaViewModelSavedStateTest {
             savedStateHandle = handle,
         )
 
+    /**
+     * Decodes the snapshot the ViewModel stored in [handle]. The handle holds a [ByteArray] (not
+     * the [GameSnapshot] directly — see [GameSnapshotSerializer]'s KDoc), so tests must deserialise
+     * it the same way the restore path does.
+     */
+    private fun readSnapshot(handle: SavedStateHandle): GameSnapshot? =
+        GameSnapshotSerializer.fromBytes(handle.get<ByteArray>(TriviaViewModel.KEY_GAME_SNAPSHOT))
+
     // ── Tests ─────────────────────────────────────────────────────────────────
 
     @Test
@@ -113,7 +122,7 @@ class TriviaViewModelSavedStateTest {
             vm.startGame(SeasonMode.RegularSeason)
             advanceUntilIdle()
 
-            val snapshot = handle.get<GameSnapshot>(TriviaViewModel.KEY_GAME_SNAPSHOT)
+            val snapshot = readSnapshot(handle)
             assertNotNull("Snapshot should be written after startGame", snapshot)
             assertEquals(SeasonMode.RegularSeason, snapshot!!.selectedMode)
             assertEquals(3, snapshot.choices.size)
@@ -131,7 +140,7 @@ class TriviaViewModelSavedStateTest {
             val correctId = vm.correctPlayer!!.id
             vm.selectAnswer(correctId)
 
-            val snapshot = handle.get<GameSnapshot>(TriviaViewModel.KEY_GAME_SNAPSHOT)
+            val snapshot = readSnapshot(handle)
             assertNotNull(snapshot)
             assertEquals(correctId, snapshot!!.selectedPlayerId)
             assertEquals(100, snapshot.score)

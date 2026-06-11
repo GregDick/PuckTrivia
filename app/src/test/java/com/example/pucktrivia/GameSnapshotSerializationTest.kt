@@ -1,24 +1,22 @@
 package com.example.pucktrivia
 
 import com.example.pucktrivia.data.GameSnapshot
+import com.example.pucktrivia.data.GameSnapshotSerializer
 import com.example.pucktrivia.model.GoalieStatLeader
 import com.example.pucktrivia.model.QuestionType
 import com.example.pucktrivia.model.SeasonMode
 import com.example.pucktrivia.model.SkaterStatLeader
 import com.example.pucktrivia.model.StatLeader
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import java.io.ObjectInputStream
-import java.io.ObjectOutputStream
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Verifies that [GameSnapshot] survives a Java-serialization round-trip — the mechanism the
- * framework uses to write it into the saved-state Bundle for process-death survival. Runs on the
- * plain JVM (no emulator), unlike a `Parcel` round-trip would.
+ * Verifies that [GameSnapshot] survives the [GameSnapshotSerializer] byte round-trip — the
+ * mechanism used to write it into the saved-state Bundle for process-death survival — and that the
+ * serializer fails safe on unreadable input. Runs on the plain JVM (no emulator), unlike a `Parcel`
+ * round-trip would.
  */
 class GameSnapshotSerializationTest {
 
@@ -75,16 +73,8 @@ class GameSnapshotSerializationTest {
             usedIds = usedIds,
         )
 
-    private fun GameSnapshot.serializationRoundTrip(): GameSnapshot {
-        val bytes =
-            ByteArrayOutputStream().use { buffer ->
-                ObjectOutputStream(buffer).use { it.writeObject(this) }
-                buffer.toByteArray()
-            }
-        return ObjectInputStream(ByteArrayInputStream(bytes)).use {
-            it.readObject() as GameSnapshot
-        }
-    }
+    private fun GameSnapshot.serializationRoundTrip(): GameSnapshot =
+        GameSnapshotSerializer.fromBytes(GameSnapshotSerializer.toBytes(this))!!
 
     @Test
     fun `regular-season snapshot without answer round-trips`() {
@@ -148,5 +138,15 @@ class GameSnapshotSerializationTest {
     fun `empty usedIds map round-trips`() {
         val restored = baseSnapshot(usedIds = emptyMap()).serializationRoundTrip()
         assertTrue(restored.usedIds.isEmpty())
+    }
+
+    @Test
+    fun `fromBytes returns null for null input`() {
+        assertNull(GameSnapshotSerializer.fromBytes(null))
+    }
+
+    @Test
+    fun `fromBytes returns null for corrupt bytes instead of throwing`() {
+        assertNull(GameSnapshotSerializer.fromBytes(byteArrayOf(1, 2, 3, 4, 5)))
     }
 }
