@@ -22,7 +22,9 @@ The plan therefore builds every panel by hand with `Subspace`, `SpatialColumn`, 
 
 One caveat worth carrying regardless of path: `androidx.xr.compose` and `androidx.xr.compose.material3` are versioned independently with **no BOM and no published cross-artifact compatibility matrix** (the alpha17 tags on the two artifacts are three months apart). Pin an exact pair and verify it builds before relying on anything from the material3 artifact.
 
-**Corollary for implementers:** when a Jetpack XR convenience API would shortcut something here, prefer the manual equivalent and note the alternative in a comment rather than adopting it. This applies to `SpaceToggleButton()` in Story 4 as well.
+**Corollary for implementers:** when a Jetpack XR convenience API would shortcut something here, prefer the manual equivalent and note the alternative in a comment rather than adopting it.
+
+**The inverse also applies, and it cut a story.** Preferring manual code is not the same as reimplementing the platform. Where Android XR already provides something to the *user* — most notably the system window-chrome control that expands and compacts an app between Home Space and Full Space — the app should use it rather than build its own. That distinction removed the original Story 4 entirely. Hand-write the things the app renders; do not hand-write the things the system shell already renders.
 
 ---
 
@@ -52,16 +54,17 @@ The official `xr-samples` repo runs Kotlin 2.4.10 / AGP 9.3.1 / Compose BOM 2026
 
 **There is no `androidx.xr` BOM** — every artifact is versioned independently and must be pinned individually in `gradle/libs.versions.toml`.
 
-| Artifact | Version | Date | Stability |
-|---|---|---|---|
-| `androidx.xr.compose:compose` | 1.0.0-alpha17 | 2026-08-12 | alpha |
-| `androidx.xr.compose:compose-material3` | 1.0.0-alpha17 | 2026-05-19 | alpha |
-| `androidx.xr.compose:compose-testing` | (matches compose) | — | alpha |
-| `androidx.xr.scenecore:scenecore` | 1.0.0-beta02 | 2026-08-12 | beta |
-| `androidx.xr.runtime:runtime` | 1.0.0-beta02 | 2026-08-12 | beta |
-| `com.android.extensions.xr:extensions-xr` | — | — | **`compileOnly`**, required only if minification is enabled |
+| Artifact | Version | Date | Stability | Used here? |
+|---|---|---|---|---|
+| `androidx.xr.compose:compose` | 1.0.0-alpha17 | 2026-08-12 | alpha | **yes** |
+| `androidx.xr.scenecore:scenecore` | 1.0.0-beta02 | 2026-08-12 | beta | **yes** |
+| `androidx.xr.runtime:runtime` | 1.0.0-beta02 | 2026-08-12 | beta | **yes** |
+| `androidx.xr.compose:compose-testing` | (matches compose) | — | alpha | yes, Story 5 |
+| `com.android.extensions.xr:extensions-xr` | — | — | `compileOnly` | only if minification is enabled (it isn't) |
+| `androidx.xr.compose:compose-material3` | 1.0.0-alpha17 | 2026-05-19 | alpha | **no** — serves the declined override path |
+| `androidx.xr.arcore` | — | — | beta | **no** — world tracking, unused by panel UI |
 
-`androidx.xr.arcore` is **not needed** — this feature uses panels only, no world tracking.
+Note the trap in that table: `compose` and `compose-material3` both read `1.0.0-alpha17` but are **three months apart** and independently released. Not adding material3 sidesteps the problem entirely.
 
 ### Corrected API surface
 
@@ -98,7 +101,11 @@ These observations are drawn from the existing codebase and shape the scope belo
 
 ## Epic: Spatialize the Question Screen
 
-Five stories. Story 1 is a pure toolchain migration with zero behavior change — isolated because it is the riskiest part of the feature and has nothing to do with XR UI. Story 2 adds the XR dependencies, manifest, and capability detection. Story 3 is the core multi-panel layout. Story 4 gives the player the control to enter and leave Full Space. Story 5 locks the behavior in with tests.
+Four active stories, and **only one of them is user-facing.** (Story 4 was cut after verification — its section is kept below as a record, and the numbering is left alone so references stay stable.)
+
+**Worth stating up front, because it changes how this feature should be read: Puck Trivia already runs on an Android XR headset today.** Android XR runs standard Android apps as flat windows in Home Space, so "support Android XR" in the install-and-play sense is already true with zero code. Getting *into* Full Space is also already provided, by the system window-chrome control. The user-facing deliverable of this feature is therefore narrower and more honest than "XR support" — it is exactly one thing: **the Question screen rendered as separate spatial panels once the player is in Full Space** (Story 3).
+
+Stories 1, 2, and 5 are engineering-only scaffolding around that one screen. Story 1 is a pure toolchain migration with zero behavior change, isolated because it is the riskiest part of the feature and has nothing to do with XR UI. Story 2 adds the XR dependencies, manifest declarations, and the capability check Story 3 branches on. Story 5 adds test coverage.
 
 ---
 
@@ -147,11 +154,13 @@ Five stories. Story 1 is a pure toolchain migration with zero behavior change �
 
 ---
 
-### Story 2: Run on Android XR and Detect Spatial Capability
+### Story 2: Add the XR Dependencies and Spatial Capability Detection ⚙️
 
-**As a** player with an Android XR headset,
-**I want to** install and open Puck Trivia on my device and play it,
-**So that** the app is available to me at all, as a starting point for a spatial experience.
+> ⚙️ **Engineering-only story.** No user-facing result, and worth being blunt about why: **Puck Trivia already installs and plays on an Android XR headset today, with zero changes.** Android XR runs any standard Android app as a flat window in Home Space. There is no "make it run on XR" work to do — the platform does that for free. What this story adds is the dependencies, the manifest declarations, and the capability check that Story 3 needs in order to render anything spatial. It is separated from Story 3 so that adding the XR libraries — which are pre-1.0 and could destabilize the build on their own — is verified independently of the UI work that consumes them.
+
+**As a** developer,
+**I want** the XR libraries on the classpath and a shared way to ask whether spatial UI is currently available,
+**So that** the spatial layout in Story 3 has something to branch on, and any build fallout from the pre-1.0 XR dependencies surfaces before UI work is layered on top.
 
 **Story Points:** 3
 **Priority:** P0
@@ -159,23 +168,25 @@ Five stories. Story 1 is a pure toolchain migration with zero behavior change �
 
 #### Acceptance Criteria
 
-- [ ] The app installs and launches on an Android XR device (or the Android XR emulator) and is fully playable start-to-finish in its existing 2D layout, in Home Space.
-- [ ] The app continues to install, launch, and behave identically on a phone and a tablet.
-- [ ] The app declares XR support as *optional*, so it remains installable and visible in the Play Store for non-XR devices.
-- [ ] The app launches into Home Space (a normal windowed panel), not directly into an immersive space.
-- [ ] A shared helper answers "is spatial UI available right now?", and a separate helper answers "is this device XR-capable at all?" — both usable from any composable, mirroring how `isLandscape()` is shared today.
-- [ ] `./gradlew assembleDebug` and `./gradlew test` pass with the XR dependencies added.
+- [ ] The XR dependencies are added, pinned to exact versions, and `./gradlew assembleDebug`, `./gradlew assembleRelease`, and `./gradlew test` all pass.
+- [ ] A shared helper answers "is spatial UI available right now?", usable from any composable, mirroring how `isLandscape()` is shared today.
+- [ ] The manifest declares XR support as *optional*, and the app remains installable on a non-XR phone (verified by an actual `adb install`, not by inspection).
+- [ ] The manifest states the launch space mode explicitly rather than relying on the platform default.
+- [ ] **Regression only:** the app still installs and plays start-to-finish on an XR device in Home Space, and still behaves identically on a phone and tablet. This is a guard against the new dependencies breaking something that already worked — not a new capability.
 
 #### Design Notes
 
-No visual change on any device in this story. On a headset the app looks exactly as it does on a tablet today.
+No visual change on any device. On a headset the app looks exactly as it does today, which is exactly as it does on a tablet.
 
 #### Engineering Notes
 
-- **Dependencies** — add to `gradle/libs.versions.toml` and `app/build.gradle.kts`, pinned to exact versions (no ranges) per the Toolchain section: `androidx.xr.compose:compose`, `androidx.xr.compose:compose-material3`, `androidx.xr.scenecore:scenecore`, `androidx.xr.runtime:runtime`. Skip `androidx.xr.arcore`. Add `com.android.extensions.xr:extensions-xr` as `compileOnly` only when minification is turned on — it is off today.
+- **Dependencies** — add to `gradle/libs.versions.toml` and `app/build.gradle.kts`, pinned to exact versions (no ranges) per the Toolchain section: `androidx.xr.compose:compose`, `androidx.xr.scenecore:scenecore`, `androidx.xr.runtime:runtime`. Add `com.android.extensions.xr:extensions-xr` as `compileOnly` only when minification is turned on — it is off today.
+- **Do not add `androidx.xr.compose:compose-material3` or `androidx.xr.arcore`.** The material3 artifact exists only to serve `EnableXrComponentOverrides` and `SpaceToggleButton` — the first is declined (see Approach), and the second is moot now that Story 4 is cut. Adding it would pull in an artifact with an independent version cadence and no compatibility matrix for no benefit. `arcore` is for world tracking, which panel UI does not use.
 - **Manifest** (`app/src/main/AndroidManifest.xml`):
   - `<uses-feature android:name="android.software.xr.api.spatial" android:required="false" />` — note the exact string; `android.software.xr.immersive` is **not** current.
-  - On `<activity .name=".MainActivity">`: `<property android:name="android.window.PROPERTY_XR_ACTIVITY_START_MODE" android:value="XR_ACTIVITY_START_MODE_HOME_SPACE" />` so the launch mode is explicit rather than implicit.
+  - On `<activity .name=".MainActivity">`: `<property android:name="android.window.PROPERTY_XR_ACTIVITY_START_MODE" android:value="XR_ACTIVITY_START_MODE_HOME_SPACE" />` so the launch mode is explicit rather than implicit. The property is optional and only affects the *initial* launch space; it is expected to be inert on a phone.
+  - ⚠️ **Verify that constant string empirically.** developer.android.com documents `XR_ACTIVITY_START_MODE_HOME_SPACE`, but the official `xr-samples` manifest declares `XR_ACTIVITY_START_MODE_HOME_SPACE_MANAGED`, which matches no documented value. The research doc flags this discrepancy. Confirm on-device which one the platform honors before relying on it — and since the platform default is already Home Space, dropping the property entirely is an acceptable outcome if neither resolves cleanly.
+  - **No `android:configChanges` and no `android:resizeableActivity`.** Neither appears in the XR docs or the official sample's manifest. Space-mode transitions do not require them.
   - No XR runtime permissions. Panel UI requires none; do not add hand tracking, eye tracking, or scene understanding.
 - **New file `app/src/main/java/com/example/pucktrivia/SpatialUtils.kt`**, beside `OrientationUtils.kt` and following its shape (short, `internal`, `@Composable`, KDoc explaining why it is shared):
   ```kotlin
@@ -184,17 +195,9 @@ No visual change on any device in this story. On a headset the app looks exactly
   internal fun isSpatialUiEnabled(): Boolean =
       LocalSpatialCapabilities.current.isSpatialUiEnabled
 
-  /** True when the device supports XR spatial features at all, regardless of current space mode. */
-  @Composable
-  internal fun isXrDevice(): Boolean {
-      val context = LocalContext.current
-      return remember(context) {
-          context.packageManager.hasSystemFeature("android.software.xr.api.spatial")
-      }
-  }
   ```
-  These answer two different questions and both are needed: `isSpatialUiEnabled()` gates the panel layout, `isXrDevice()` gates the "expand into Full Space" affordance in Story 4. **`LocalHasXrSpatialFeature` is not in current docs** — use the `PackageManager` check above rather than reaching for it.
-- **SceneCore `Session`** is needed for Story 4's mode switching. If it is created here, note that `Session.create` must run on a worker thread, and that `LocalSession`-derived CompositionLocals can transiently resolve null before initialization completes — never dereference one without a null guard.
+  **One helper, not two.** An earlier draft also proposed an `isXrDevice()` check backed by `PackageManager.hasSystemFeature(...)`, to gate the in-app Full Space toggle. With Story 4 cut there is no consumer for it, so do not write it — `isSpatialUiEnabled()` is the only question the app needs to ask. (Noted here because the distinction is genuinely useful in an app that *does* have XR-only chrome: `isSpatialUiEnabled()` is false in Home Space even on a headset, so it is the wrong gate for anything that must be visible *before* the user expands. Also worth recording: **`LocalHasXrSpatialFeature` is not in current docs** — reach for `PackageManager`, not that.)
+- **Check whether `scenecore` and `runtime` are needed as direct dependencies.** They were originally listed because Story 4 needed a SceneCore `Session` for `requestFullSpace()`. With that cut, the app may only need `androidx.xr.compose:compose`, with the others arriving transitively. Try the minimal set first and add back only what fails to resolve — fewer pinned pre-1.0 artifacts is strictly better. If a `Session` is created for any reason, remember `Session.create` must run on a worker thread and `LocalSession`-derived CompositionLocals can transiently resolve null.
 - Install the Android XR system image via the SDK Manager in Android Studio Canary.
 
 #### QA / Testing Notes
@@ -207,7 +210,7 @@ No visual change on any device in this story. On a headset the app looks exactly
 
 - **`required="false"` is not optional.** Omitting it — or setting `required="true"` — makes the app uninstallable on phones. That one attribute is the difference between "adds XR support" and "becomes an XR-only app".
 - **Every XR artifact is pre-1.0** (alpha17 / beta02), with documented renames and removals almost every alpha. Pin exact versions and state the stability level in the PR so a future upgrade is a deliberate act with a changelog review, not a routine bump.
-- **Verify the feature string on a real device.** `android.software.xr.api.spatial` is what current docs show, but the research flagged conflicting older strings in circulation. If `isXrDevice()` returns false on an actual XR target, this constant is the first thing to check.
+- **Verify the `uses-feature` string.** `android.software.xr.api.spatial` is what current docs show, but the research flagged older strings still in circulation. Since it is declared `required="false"`, a wrong string fails silently rather than loudly — it will not block installation anywhere, it just means the declaration is meaningless. Check it against current docs at implementation time rather than trusting this plan.
 - **Null session during startup.** A composable that reads a session-derived local on first frame may see null. Guard rather than assert.
 
 ---
@@ -291,6 +294,7 @@ No visual change on any device in this story. On a headset the app looks exactly
   This extraction is the majority of the risk-free work in this story and is what prevents the spatial layout from drifting as the game evolves.
 - **Fixed-height spacer boxes do not belong in the spatial layout.** Both existing layouts wrap the feedback text and `Next` button in fixed-height `Box`es purely to stop 2D layout shift (`TriviaQuestionScreen.kt:129`, `:167`, `:235`). Separate panels do not shift each other — show and hide those elements directly. Do not copy the spacer boxes across.
 - **The answers panel does not need `verticalScroll`.** The landscape layout scrolls because the landscape viewport is short (see the warning comment at `TriviaQuestionScreen.kt:281`). A panel sized for three choices has no such constraint.
+- **Keep `remember{}` state out of `Subspace{}`.** This is the one documented pitfall of space-mode transitions: anything remembered *inside* a `Subspace` block is disposed and recreated on every Home ↔ Full round-trip. This app is already positioned correctly — all real state lives in the process-retained `TriviaViewModel` — so the rule is simply not to introduce transient spatial-only UI state inside the subspace. Hoist anything that needs to survive above it.
 - **`TriviaViewModel` is not touched.** No new state, no new callbacks, no persistence change. `GameSnapshot` and the `SavedStateHandle` restore path are unaffected — confirm this is still true at PR time.
 
 #### QA / Testing Notes
@@ -302,7 +306,7 @@ No visual change on any device in this story. On a headset the app looks exactly
 
 #### Edge Cases & Risk Analysis
 
-- **Mode change mid-question.** Switching between Home Space and Full Space while a question is on screen must not lose the question, the selected answer, or the feedback. The screen is fully state-hoisted and the ViewModel is process-retained, so this should hold — but a mode switch may deliver a configuration change, so verify explicitly at both an unanswered and an answered question.
+- **Mode change mid-question.** Switching between Home Space and Full Space via the system window-chrome control, while a question is on screen, must not lose the question, the selected answer, or the feedback. Research indicates this is a Compose-level subspace mount/unmount rather than an Activity recreation, and the screen is fully state-hoisted onto a process-retained ViewModel — so it should hold. Verify anyway, at both an unanswered and an answered question, and while `isLoading` is true. This absorbed the only real work item from the cut Story 4.
 - **Non-question screens in Full Space.** Start, loading, Game Over, and the three error states are out of scope for splitting but still have to *render*. Check each one, especially the Question → Game Over transition, which crosses from the three-panel branch to the single-panel branch.
 - **The `correctPlayer!!` non-null assertion.** `MainActivity.kt:126` dereferences `viewModel.correctPlayer!!`, guarded only by the preceding `choices.isEmpty()` branch. The routing refactor must preserve branch ordering exactly, or this becomes a crash. Call it out in review.
 - **Panel sizing is guesswork until it is on a device.** Budget an on-device tuning pass; the first numbers that compile are not final.
@@ -311,51 +315,17 @@ No visual change on any device in this story. On a headset the app looks exactly
 
 ---
 
-### Story 4: Enter and Leave Full Space From Inside the App
+### ~~Story 4: Enter and Leave Full Space From Inside the App~~ — CUT
 
-**As a** player on an Android XR device,
-**I want to** expand Puck Trivia into an immersive spatial layout and collapse it back to a window,
-**So that** I can choose when to play in my full space and when to keep the game in a small window.
+**This story was removed after verification. The platform already provides it.**
 
-**Story Points:** 3
-**Priority:** P1
-**Dependencies:** Story 2 (needs the capability check); pairs with Story 3
+Android XR's system window chrome includes an expand/compact window control — the spatial analogue of a desktop maximize button — available to the user on every app without the app doing anything. Building an in-app toggle would duplicate standard system chrome, which is an anti-pattern, and `SpaceToggleButton` in the Material3-XR artifact is a convenience for apps that want one, not a requirement.
 
-#### Acceptance Criteria
+Transitions are also free at the code level. Per the research, a Home ↔ Full Space transition is **not documented as an Activity recreation or configuration change** — the evidence points to a Compose-level `Subspace{}` mount/unmount, `LocalSpatialCapabilities` is documented as recomposing automatically with "no manual listener setup required", and neither `android:configChanges` nor `android:resizeableActivity` appears in XR docs or the official sample's manifest. There is nothing to wire up.
 
-- [ ] On an XR device in Home Space, the Question screen shows a control to expand into Full Space.
-- [ ] Activating it switches the app to Full Space, and the three-panel layout from Story 3 appears.
-- [ ] While in Full Space, a control is available to return to Home Space, and activating it restores the windowed 2D layout.
-- [ ] The expand/collapse controls are **not shown at all** on a phone or tablet — no dead button, no empty space where one would be.
-- [ ] Switching modes in either direction preserves the current question, score, lives, and any selected answer with its feedback.
+What survived the cut moved into Story 3: the one genuine work item is making sure state is not lost across a transition, which is a verification step on the layout, not a feature of its own. See Story 3's `remember{}` engineering note and its mode-change edge case.
 
-#### Design Notes
-
-- In Home Space, place the expand control in the Question screen's status header — a small icon button with a content description such as "Expand to full space", visually subordinate to score and lives.
-- In Full Space, attach the collapse control to the status panel as floating chrome (an `Orbiter`) rather than embedding it in panel content, so it does not compete with game information for panel space.
-- Both controls are icon-only and need content descriptions.
-
-#### Engineering Notes
-
-- Gate both controls on `isXrDevice()` from Story 2 — **not** on `isSpatialUiEnabled()`, which is false in Home Space and would hide the expand button exactly when it is needed. This distinction is the single most likely bug in this story.
-- Switch modes via SceneCore: **`session.scene.requestFullSpace()`** and **`session.scene.requestHomeSpace()`**. There is no Compose CompositionLocal for this — the `Session` must be obtained and held. Remember `Session.create` runs on a worker thread and session-derived locals can transiently be null.
-- The mode request is asynchronous. Do not hold local state mirroring the current mode — read it from `isSpatialUiEnabled()` so there is one source of truth and a denied request degrades correctly.
-- `Orbiter` degrades to plain inline content when not spatialized, so the same composable can serve both modes if that reads cleanly.
-- **Build the toggle by hand.** `androidx.xr.compose.material3.SpaceToggleButton` is a ready-made control that self-manages both directions (it reads the current space mode and toggles Full ↔ Home on its own). Do not use it — per the Approach section, the manual path is what transfers to the legacy app. Reference it in a comment as the known alternative so the choice reads as deliberate rather than uninformed. Note also that whether it hides itself on non-XR devices is undocumented, so it would need the same `isXrDevice()` gate anyway.
-- The system shell also offers its own mode toggle in the window chrome, which is why this story is P1 — Story 3 is testable without it.
-
-#### QA / Testing Notes
-
-- On the XR emulator: expand from Home Space mid-question, confirm the three panels appear with the same question and the same selected answer; collapse back, confirm the 2D layout returns with state intact.
-- Expand and collapse repeatedly in quick succession — no crash, no stuck intermediate state.
-- On a phone, confirm neither control renders anywhere on the Question screen.
-- Toggle via the system shell chrome as well as the in-app control; both must reach the same result.
-
-#### Edge Cases & Risk Analysis
-
-- **Mode request denied or ignored.** The request may not be honored in every system state. Because the layout is driven by the capability check rather than local state, a denied request simply leaves the player where they were — the correct fallback. Do not add a "pending" state.
-- **Rapid toggling during an in-flight question fetch.** A mode switch while `isLoading` is true should show the loading spinner in the new mode, not a blank panel.
-- **Control placement in Home Space.** The status header is already crowded in portrait. Verify the expand icon does not push the season label or lives count into a wrap on the narrowest supported window.
+**Net effect:** feature drops from 22 points to 19, and from two user-facing stories to one.
 
 ---
 
@@ -398,19 +368,19 @@ No visual change on any device in this story. On a headset the app looks exactly
 | Story | Title | Points | Priority | Dependencies |
 |-------|-------|--------|----------|--------------|
 | 1 | Raise the Toolchain to the Jetpack XR Floor ⚙️ *(engineering-only)* | 5 | P0 | None |
-| 2 | Run on Android XR and Detect Spatial Capability | 3 | P0 | Story 1 |
+| 2 | Add the XR Dependencies and Spatial Capability Detection ⚙️ *(engineering-only)* | 3 | P0 | Story 1 |
 | 3 | Split the Question Screen Into Status, Question, and Answer Panels | 8 | P0 | Story 2 |
-| 4 | Enter and Leave Full Space From Inside the App | 3 | P1 | Story 2 |
+| ~~4~~ | ~~Enter and Leave Full Space From Inside the App~~ — **CUT**, the platform provides it | ~~3~~ | — | — |
 | 5 | Test Coverage for the Spatial Question Screen ⚙️ *(engineering-only)* | 3 | P1 | Story 3 |
 
-**Total Story Points:** 22
+**Total Story Points:** 19 — of which **8 (Story 3) are user-facing** and 11 are scaffolding. That ratio is worth seeing plainly: well over half this feature is toolchain, dependency, and test work in service of one screen's spatial layout. If that trade looks wrong, the place to challenge it is Story 1 — the toolchain migration is the price of admission, and it does not get cheaper by descoping the UI.
 
 ---
 
 ## Assumptions
 
 1. **One APK, graceful degradation.** A single artifact runs 2D on phones and tablets and spatially on XR headsets, selected at runtime by a capability check. No `:xr` module, no product flavor, no second release.
-2. **Home Space on launch, Full Space by opt-in.** The app opens as a normal window. The multi-panel layout appears only after the player expands into Full Space (Story 4) or uses the system shell's own toggle.
+2. **Home Space on launch, Full Space by opt-in via the system control.** The app opens as a normal window. The multi-panel layout appears only after the player expands into Full Space using the platform's own window-chrome control. The app builds no toggle of its own.
 3. **Question screen only.** Start, Game Over, and the error states render as a single panel in Full Space. They are verified not to break, but they are not spatialized.
 4. **Status information gets its own panel**, positioned above the question and answer panels, rather than living in an orbiter or inside the question panel.
 5. **No `TriviaViewModel` changes.** The Question screen is fully state-hoisted, so the entire feature is presentation-layer work.
@@ -452,7 +422,7 @@ Then, by hand:
 
 1. **Phone regression** — install on a phone, play a full game in portrait and landscape, rotate mid-question, background and `adb shell am kill com.example.pucktrivia`, relaunch and confirm restore. Nothing should differ from today.
 2. **XR, Home Space** — install on the Android XR emulator (Android Studio Canary), confirm the app opens windowed and is fully playable in the 2D layout.
-3. **XR, Full Space** — expand via the in-app control, confirm the three panels appear, answer a question and watch all three panels update on a single tap, tap Next, and play through to Game Over.
+3. **XR, Full Space** — expand using the system window-chrome control, confirm the three panels appear, answer a question and watch all three panels update on a single tap, tap Next, and play through to Game Over.
 4. **Mode round-trip** — expand and collapse mid-question at both an unanswered and an answered question; confirm state survives both ways.
 
 Steps 2–4 are the *only* verification the spatial layout gets, since journey testing is excluded. Treat them as required, not optional.
