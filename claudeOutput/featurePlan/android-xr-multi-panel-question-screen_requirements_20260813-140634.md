@@ -61,10 +61,18 @@ The official `xr-samples` repo runs Kotlin 2.4.10 / AGP 9.3.1 / Compose BOM 2026
 | `androidx.xr.runtime:runtime` | 1.0.0-beta02 | 2026-08-12 | beta | **yes** |
 | `androidx.xr.compose:compose-testing` | (matches compose) | — | alpha | yes, Story 5 |
 | `com.android.extensions.xr:extensions-xr` | — | — | `compileOnly` | only if minification is enabled (it isn't) |
-| `androidx.xr.compose:compose-material3` | 1.0.0-alpha17 | 2026-05-19 | alpha | **no** — serves the declined override path |
+| `androidx.xr.compose.material3:material3` | 1.0.0-alpha17 | 2026-05-19 | alpha | **no** — serves the declined override path |
 | `androidx.xr.arcore` | — | — | beta | **no** — world tracking, unused by panel UI |
 
-Note the trap in that table: `compose` and `compose-material3` both read `1.0.0-alpha17` but are **three months apart** and independently released. Not adding material3 sidesteps the problem entirely.
+⚠️ **Do not confuse these three similarly-named artifacts:**
+
+| Coordinate | What it is | Status here |
+|---|---|---|
+| `androidx.compose.material3:material3` | Standard Material 3 for Compose | **already a dependency, unchanged.** Every panel's content is ordinary Material3 — `MaterialTheme`, `Button`, `Text`. Nothing about this feature touches it. |
+| `androidx.xr.compose.material3:material3` | Material *for XR* — `EnableXrComponentOverrides`, `SpaceToggleButton` | not added — see Approach |
+| `androidx.compose.material3.adaptive:*` | Large-screen/foldable adaptive layouts (pane scaffolds). **Not an XR library** — it has zero XR awareness on its own | not added |
+
+Note the version trap on the XR one: `androidx.xr.compose:compose` and `androidx.xr.compose.material3:material3` both read `1.0.0-alpha17` but are **three months apart** and independently released. Not adding it sidesteps the problem entirely.
 
 ### Corrected API surface
 
@@ -181,7 +189,8 @@ No visual change on any device. On a headset the app looks exactly as it does to
 #### Engineering Notes
 
 - **Dependencies** — add to `gradle/libs.versions.toml` and `app/build.gradle.kts`, pinned to exact versions (no ranges) per the Toolchain section: `androidx.xr.compose:compose`, `androidx.xr.scenecore:scenecore`, `androidx.xr.runtime:runtime`. Add `com.android.extensions.xr:extensions-xr` as `compileOnly` only when minification is turned on — it is off today.
-- **Do not add `androidx.xr.compose:compose-material3` or `androidx.xr.arcore`.** The material3 artifact exists only to serve `EnableXrComponentOverrides` and `SpaceToggleButton` — the first is declined (see Approach), and the second is moot now that Story 4 is cut. Adding it would pull in an artifact with an independent version cadence and no compatibility matrix for no benefit. `arcore` is for world tracking, which panel UI does not use.
+- **Do not add `androidx.xr.compose.material3:material3` or `androidx.xr.arcore`.** The XR material3 artifact exists only to serve `EnableXrComponentOverrides` and `SpaceToggleButton` — the first is declined (see Approach), and the second is moot now that Story 4 is cut. Adding it would pull in an artifact with an independent version cadence and no compatibility matrix for no benefit. `arcore` is for world tracking, which panel UI does not use.
+- **The app's existing `androidx.compose.material3:material3` dependency stays exactly as it is** (`libs.androidx.compose.material3`, `app/build.gradle.kts:82`). That is standard Material 3, not the XR artifact, and it is what every panel's content is built from. Only its version moves, via the Compose BOM bump in Story 1. See the disambiguation table in the Toolchain section — the two are one namespace segment apart and easy to conflate.
 - **Manifest** (`app/src/main/AndroidManifest.xml`):
   - `<uses-feature android:name="android.software.xr.api.spatial" android:required="false" />` — note the exact string; `android.software.xr.immersive` is **not** current.
   - On `<activity .name=".MainActivity">`: `<property android:name="android.window.PROPERTY_XR_ACTIVITY_START_MODE" android:value="XR_ACTIVITY_START_MODE_HOME_SPACE" />` so the launch mode is explicit rather than implicit. The property is optional and only affects the *initial* launch space; it is expected to be inert on a phone.
