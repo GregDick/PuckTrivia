@@ -348,22 +348,40 @@ No visual change on any device. On a headset the app looks exactly as it does to
 
 #### Acceptance Criteria
 
-- [ ] On an XR device in Home Space, the Question screen shows a control to expand into Full Space.
-- [ ] Activating it switches the app to Full Space, and the three-panel layout from Story 3 appears.
-- [ ] While in Full Space, a control is available to return to Home Space, and activating it restores the windowed 2D layout.
-- [ ] The expand/collapse controls are **not shown at all** on a phone or tablet — no dead button, no empty space where one would be.
+- [ ] On an XR device, a control to toggle between Home Space and Full Space is visible in the **top-right corner on every screen** — Start, Question, Game Over, loading, and the error states — not just the Question screen.
+- [ ] The control persists across screen transitions without flicker, re-entry animation, or shifting position as the underlying screen changes.
+- [ ] Activating it from Home Space switches the app to Full Space, and the three-panel layout from Story 3 appears.
+- [ ] Activating it from Full Space returns to Home Space and the windowed 2D layout.
+- [ ] The icon reflects which direction it will take the player (expand vs collapse), and carries a content description that matches.
+- [ ] The control is **not shown at all** on a phone or tablet — no dead button, no reserved space where one would be.
+- [ ] The control does not overlap or obscure content on any screen — check the Start screen title, the Game Over leaderboard, and the Question screen status row specifically.
 - [ ] Switching modes in either direction preserves the current question, score, lives, and any selected answer with its feedback.
 
 #### Design Notes
 
-- In Home Space, place the expand control in the Question screen's status header — a small icon button with a content description such as "Expand to full space", visually subordinate to score and lives.
-- In Full Space, attach the collapse control to the status panel as floating chrome (an `Orbiter`) rather than embedding it in panel content, so it does not compete with game information for panel space.
-- Both controls are icon-only and need content descriptions.
-- Consider whether the control belongs on the Start screen too — a player who never reaches a question never sees it. Out of scope for the ACs above, but worth raising once the placement is real.
+- **Persistent, top-right, on every screen.** This is app-level chrome, not part of any one screen. It is the only way into the feature, so it is deliberately always reachable — a player who opens the app, sits on the Start screen, and never notices it never discovers the spatial layout at all.
+- **Size it to be found, not to be tasteful.** Default Material `IconButton` sizing (48.dp target, 24.dp icon) is easy to miss at headset viewing distance. Start at roughly a 64.dp target with a 36.dp icon and tune on-device; err toward too large on the first pass, since the failure mode being designed against is invisibility. If it turns out to dominate, shrinking is a one-line change.
+- Give it a subtle container (tonal surface or translucent scrim) so it stays legible over both the dark app background and whatever the panel content is behind it.
+- In Full Space, present it as an `Orbiter` anchored to the top-end of the panel group rather than embedding it in panel content, so it does not consume panel space or scroll away with content.
+- Icon-only in both modes, with a content description that changes with direction ("Expand to full space" / "Return to home space").
 
 #### Engineering Notes
 
-- **Gate the controls on `isXrDevice()`, not `isSpatialUiEnabled()`.** This is the single most likely bug in the story: `isSpatialUiEnabled()` is false in Home Space even on a headset, so using it would hide the expand button in exactly the situation it exists for. Story 2 must therefore ship the `PackageManager.hasSystemFeature("android.software.xr.api.spatial")` helper after all — an earlier draft of this plan deleted it as unused, which was a consequence of the mistaken cut.
+- **Hoist the control to the activity level, not into any screen.** "Persistent on every screen" means it must not live inside `TriviaQuestionScreen`, `StartScreen`, or `GameOverScreen` — putting it in each would duplicate it four ways and guarantee drift. Render it once in `MainActivity`, layered over whatever the routing `when` selected:
+  ```kotlin
+  Box(Modifier.fillMaxSize()) {
+      Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+          TriviaContent(route, viewModel, Modifier.padding(innerPadding))
+      }
+      if (isXrDevice()) {
+          SpaceModeToggle(Modifier.align(Alignment.TopEnd).padding(16.dp))
+      }
+  }
+  ```
+  This composes cleanly with the `TriviaRoute` extraction Story 3 already introduces — the toggle sits outside the route branch entirely, which is exactly why it survives screen changes without flicker.
+- **In Full Space the toggle is an `Orbiter`, not part of the `Box` overlay above.** The 2D overlay and the spatial orbiter are two placements of the same logical control; keep the button content in one shared composable and vary only the wrapper, so the icon, sizing, and content description cannot drift between modes.
+- **Gate on `isXrDevice()`, not `isSpatialUiEnabled()`.** This is the single most likely bug in the story: `isSpatialUiEnabled()` is false in Home Space even on a headset, so using it would hide the expand button in exactly the situation it exists for. Story 2 must therefore ship the `PackageManager.hasSystemFeature("android.software.xr.api.spatial")` helper after all — an earlier draft of this plan deleted it as unused, which was a consequence of the mistaken cut. Use `isSpatialUiEnabled()` only to decide *which direction* the toggle points.
+- **Watch the edge-to-edge interaction.** `MainActivity` calls `enableEdgeToEdge()`, so a top-end overlay can land under the status bar inset on a phone. It is gated off on phones so this should not bite, but apply the appropriate window insets padding rather than assuming it never renders there.
 - Switch modes via SceneCore: **`session.scene.requestFullSpace()`** and **`session.scene.requestHomeSpace()`**. There is no Compose CompositionLocal for this — a `Session` must be obtained and held, which is why `androidx.xr.scenecore` and `androidx.xr.runtime` are direct dependencies in Story 2 rather than transitive ones. `Session.create` must run on a worker thread, and `LocalSession`-derived CompositionLocals can transiently resolve null before initialization — guard, never assert.
 - The mode request is asynchronous, and per the research a request only succeeds while the app has focus. Do not hold local state mirroring the current mode — read it from `isSpatialUiEnabled()` so there is one source of truth and a denied request degrades correctly.
 - `Orbiter` degrades to plain inline content when not spatialized, so one composable can potentially serve both modes if that reads cleanly. `Orbiter` is in core `androidx.xr.compose`, so this needs no extra artifact.
@@ -374,13 +392,16 @@ No visual change on any device. On a headset the app looks exactly as it does to
 - On the XR emulator: expand from Home Space mid-question, confirm the three panels appear with the same question and the same selected answer; collapse back, confirm the 2D layout returns with state intact.
 - Expand and collapse repeatedly in quick succession — no crash, no stuck intermediate state.
 - Expand while `isLoading` is true — the loading spinner should render in the new mode, not a blank panel.
-- On a phone, confirm neither control renders anywhere on the Question screen.
+- Walk every screen on the XR emulator — Start, loading, Question, Game Over, and a forced error state — confirming the toggle is present, in the same position, and not overlapping content on any of them.
+- Confirm it survives screen transitions without flicker: Start → Question → Game Over → Play Again.
+- On a phone, confirm the toggle renders nowhere at all, on any screen.
 
 #### Edge Cases & Risk Analysis
 
 - **Mode request denied or ignored.** A request only succeeds while the app has focus, and may not be honored in every system state. Because the layout is driven by the capability check rather than local state, a denied request simply leaves the player where they were — the correct fallback. Do not add a "pending" state.
-- **Discoverability is now load-bearing.** With no system-provided path into Full Space, a player who does not notice this control never sees the spatial layout at all. If the icon button proves easy to miss on-device, the fallback is to declare `XR_ACTIVITY_START_MODE_FULL_SPACE_MANAGED` in the manifest and launch spatial by default — a one-value change in Story 2. Raise it rather than absorbing it silently; it reverses an early product decision.
-- **Control placement in Home Space.** The status header is already crowded in portrait. Verify the expand icon does not push the season label or lives count into a wrap on the narrowest supported window.
+- **Discoverability is load-bearing, and the design answers it directly.** With no system-provided path into Full Space, a player who does not notice this control never sees the spatial layout at all. Persistent placement on every screen plus deliberate oversizing is the mitigation. If it still proves easy to miss on-device, the remaining fallback is to declare `XR_ACTIVITY_START_MODE_FULL_SPACE_MANAGED` in the manifest and launch spatial by default — a one-value change in Story 2. Raise that rather than absorbing it silently; it reverses an early product decision.
+- **Overlap is the cost of a persistent overlay.** A top-right control floating over every screen can collide with content that was laid out without it. The Game Over leaderboard and the Start screen's high-score list are the likeliest victims. Check each screen at the narrowest window size the headset allows, and add top-end padding to the underlying content rather than moving the toggle.
+- **The toggle must not react to game state.** It is chrome, not gameplay. It stays visible and enabled during loading, during error states, and at Game Over. Resist any temptation to hide it "while busy" — that would strand a player in Home Space precisely when the app is slow to respond.
 - **Transition mechanics themselves remain free.** The one part of the original research that held up: a transition is not documented as an Activity recreation or configuration change, `LocalSpatialCapabilities` recomposes with no listener setup, and neither `android:configChanges` nor `android:resizeableActivity` is needed. The `remember{}`-inside-`Subspace{}` pitfall (see Story 3) is the only state concern.
 
 ---
