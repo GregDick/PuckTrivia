@@ -703,6 +703,142 @@ defaultConfig {
 - [Android XR spatial UI design guide](https://developer.android.com/design/ui/xr/guides/spatial-ui)
 - [`android/xr-samples` — `HelloAndroidXRApp.kt`](https://github.com/android/xr-samples/blob/main/app/src/main/java/com/example/helloandroidxr/ui/HelloAndroidXRApp.kt) and `app/build.gradle.kts`
 
+## Home Space ↔ Full Space transition mechanics deep-dive (follow-up, 2026-08-13)
+
+> Follow-up research triggered by the question: how much must an app actually *do* to "support" Home Space ↔ Full Space transitions, versus what the platform handles for free? **Bottom line up front:** the system already gives the user a way to toggle spaces without the app doing anything (a window-chrome button), and the transition itself is **not** documented anywhere as an Activity recreation / configuration change — the one real, officially-documented risk is Compose state placed *inside* a `Subspace {}` block, which is unmounted/remounted across the transition. Everything below is marked **CONFIRMED** (a direct quote or unambiguous statement from an official source) or **INFERRED** (my reasoned conclusion from confirmed facts, not a direct doc statement) so you can weight it accordingly.
+
+### 1. What triggers a transition — every path
+
+| Path | Status | Detail |
+|---|---|---|
+| **System window-chrome control** | **CONFIRMED** (Google's own end-user documentation, not developer.android.com) | Google's [Android XR Help — "Spaces & multitasking"](https://support.google.com/android-xr/answer/16638859?hl=en) instructs users: *"If applicable, to switch to Full Space, find and select the **expand window button**. If applicable, to exit Full Space, find and select the **compact window button**."* This is a system-drawn control, not something the app renders — it is the spatial-computing equivalent of the desktop-windowing/freeform-multitasking maximize button (see corroborating context below). |
+| **Hardware button / gesture** | **PARTIALLY CONFIRMED, but for a different concept** | The Help Center's [device navigation article](https://support.google.com/android-xr/answer/16639048) documents "double tap the button or touchpad on your headset to switch between home and **virtual environment**" — but "environment" (skybox/passthrough) is a documented, distinct concept from "space" (Home Space vs. Full Space multitasking mode). I could not find an official statement of a dedicated hardware button/gesture specifically for the Home↔Full **space** toggle — only the window-chrome buttons above. Do not conflate the two. |
+| **System settings** | **NOT FOUND** | No official mention of a system Settings toggle for space mode. |
+| **App-initiated** | **CONFIRMED** | `session.scene.requestFullSpace()` / `session.scene.requestHomeSpace()` (Compose, via `LocalSession`, or SceneCore directly via `xrSession.scene`). Renamed from `requestFullSpaceMode()`/`requestHomeSpaceMode()` in `xr-scenecore:1.0.0-alpha07` (Sept 24, 2025) — "Other methods and documentation referring to 'Home Space Mode' and 'Full Space Mode' have been similarly updated." Source-level doc comment (from the AOSP mirror of `Scene.kt`, pre-rename revision, semantics unchanged post-rename): *"If the Activity has focus, causes the Activity to be placed in Full Space Mode... Otherwise, this call does nothing."* — note it says the **Activity** is placed in the mode, not that a new one is created. |
+| **Pre-built UI affordance** | **CONFIRMED** | `SpaceToggleButton` (`androidx.xr.compose.material3.SpaceToggleButton`, artifact `androidx.xr.compose.material3:material3:1.0.0-alpha17`) — per the live [Transition guide](https://developer.android.com/develop/xr/jetpack-xr-sdk/transition-home-space-to-full-space): *"a composable button that adapts to the current spatial mode and toggles between Full Space and Home Space."* Self-contained — you don't wire up `requestFullSpace()`/`requestHomeSpace()` yourself if you use it. (Same button was introduced under the name `SpaceModeToggleButton` in material3-xr alpha12 — see naming-drift note in the Material3 deep-dive above.) |
+| **Manifest start mode** | **CONFIRMED, but not a runtime "trigger"** | `PROPERTY_XR_ACTIVITY_START_MODE` only controls the space the Activity **launches into**; it is not something that fires again later. Declaring it does not stop the user or the app from transitioning afterward. |
+
+**Does an app need to build its own toggle at all? Answer: No, not strictly.** The system-drawn expand/compact window-chrome buttons (confirmed above) are provided without any app code. The Help Center's "if applicable" phrasing is the one hedge I could not fully resolve — I found no official statement guaranteeing this control is *always* present for *every* app in *every* situation — but I also found nothing suggesting an app can suppress it. Given `SpaceToggleButton` is a single pre-built composable (not custom logic), the practical, low-risk recommendation is: **rely on the system control as the baseline** (it's there for free), and optionally drop in `SpaceToggleButton` for an in-content affordance, since it costs one line and Google's own samples/guides present it as the idiomatic pattern — not because the system control is documented as insufficient.
+
+### 2. Does a transition cause Activity recreation or a configuration change? (the crux)
+
+**No official page states this explicitly, in either direction** — I checked the Transition guide, "Get started building immersive experiences," "Bring your Android app into 3D with XR," both XR Fundamentals codelabs, "Check for spatial capabilities," "Add a subspace to your app," the Foundations and Spatial UI design guides, and the full `xr-compose`/`xr-scenecore`/`xr-runtime` release-note changelogs, and the DP4 blog post. None of them mention `onConfigurationChanged`, activity recreation, or config qualifiers in connection with this transition.
+
+**INFERRED conclusion (high confidence, built from several confirmed facts): the transition is not an Activity-level configuration change. The same Activity instance persists.** Evidence:
+
+1. The `requestFullSpace()`/`requestHomeSpace()` doc comment describes the **Activity being placed into** a mode, not recreated.
+2. **CONFIRMED**, [Check for spatial capabilities](https://developer.android.com/develop/xr/jetpack-xr-sdk/check-spatial-capabilities): *"Since `LocalSpatialCapabilities` is a Composition Local, Compose will automatically recompose whenever spatial capabilities change... No manual listener setup is required."* An ordinary Activity-recreation path would make this statement pointless — you'd just re-read the value fresh in a new `onCreate`.
+3. **CONFIRMED**, [XR Fundamentals Part 2 codelab](https://developer.android.com/codelabs/xr-fundamentals-part-2): the codelab explicitly instructs readers to *"set up a variable to track the current environment option (outside of the `Subspace` so that the state is maintained when switching between Home Space and Full Space)"* using plain `remember { mutableStateOf(0) }`. Plain `remember` state (not `rememberSaveable`, not a `ViewModel`) does **not** survive real Activity recreation — so the only way this guidance makes sense is if the transition leaves the Activity/Composition alive and only tears down the `Subspace` subtree specifically (see below).
+4. SceneCore exposes a dedicated `Scene.setSpatialModeChangedListener(Executor, Consumer<SpatialModeChangeEvent>)` — a push-style listener for reacting to the mode change live within a running session, which would be redundant if the Activity were simply always destroyed and re-created on every transition.
+
+**What is confirmed to happen at the Compose layer: the `Subspace {}` subtree is mounted/unmounted, not the whole Activity.** [Learn Android XR Fundamentals: Part 1](https://developer.android.com/codelabs/xr-fundamentals-part-1) states verbatim: *"When running on a non-XR device, the contents of the `Subspace` composable never enter the Composition. When running on an XR device, the contents only enter the Composition when the app is running in Full Space."* [Add a subspace to your app](https://developer.android.com/develop/xr/jetpack-xr-sdk/add-subspace) corroborates: *"A subspace is rendered only when spatialization is enabled. In Home Space or on non-XR devices, any code within that subspace is ignored."* So: Full→Home disposes everything inside `Subspace`; Home→Full composes it fresh. That is a Compose-level conditional-composition event, not an OS `Configuration` change — no config qualifiers (screen size, density, orientation, etc.) are documented as changing as a result of this specific transition.
+
+**Distinct, unrelated mechanism you may be thinking of:** resizing/maximizing the app's *window while still in Home Space* (ordinary desktop-windowing/freeform multi-window behavior, not the Home↔Full toggle) genuinely does change `screenWidthDp`/`screenHeightDp` config qualifiers and, per the general (non-XR) [Support desktop windowing](https://developer.android.com/develop/ui/compose/layouts/adaptive/support-desktop-windowing) guide, every app in that windowing model gets a system-drawn header bar automatically: *"All apps running in desktop windowing have a header bar, even in immersive mode,"* with *"the system continu[ing] to draw its own interactive caption elements, such as the close and maximize buttons, on top of your app content."* This is a different (and real) Android configuration-change path, but it is **not** the Home Space ↔ Full Space transition itself — don't conflate ordinary window-resize handling with space-mode handling.
+
+### 3. What must the app declare?
+
+- **`<uses-feature android:name="android.software.xr.api.spatial" android:required="false"/>`** — CONFIRMED, standard, already in this project's plan.
+- **`PROPERTY_XR_ACTIVITY_START_MODE`** — CONFIRMED optional; only affects initial launch space; can be declared at `<application>` or `<activity>` level (activity-level scopes it to that activity).
+- **`android:configChanges`** — **not documented anywhere as required or recommended** for this transition specifically. Consistent with the "not a config change" inference in §2. (It remains relevant for the *unrelated* desktop-windowing resize case above, but that's not this feature.)
+- **`android:resizeableActivity`** — **not mentioned in any XR doc page found**, and not declared in the official sample.
+- **What the official sample actually declares** — the *entire* `android/xr-samples` repo is a single sample, "HelloAndroidXR." Its manifest (`app/src/main/AndroidManifest.xml`, cross-checked verbatim via two independent mirrors — GitHub's `blob` view and the jsdelivr CDN — to rule out a fetch-tool transcription error), in full:
+
+```xml
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- Indicates that the app makes use of XR spatial APIs, but this isn't a requirement that
+    should block installing the app -->
+    <uses-feature android:name="android.software.xr.api.spatial" android:required="false" />
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.HelloAndroidXR"
+        tools:targetApi="31">
+        <property
+            android:name="android.window.PROPERTY_XR_ACTIVITY_START_MODE"
+            android:value="XR_ACTIVITY_START_MODE_HOME_SPACE_MANAGED" />
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.HelloAndroidXR">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
+```
+
+  **Notable discrepancy, flagged rather than resolved:** the sample declares the value `XR_ACTIVITY_START_MODE_HOME_SPACE_MANAGED`. Every developer.android.com prose page I could fetch (the Transition guide, "Get started building immersive experiences," the XR Fundamentals codelab) instead documents the value as plain **`XR_ACTIVITY_START_MODE_HOME_SPACE`** (no `_MANAGED` suffix) alongside `XR_ACTIVITY_START_MODE_FULL_SPACE_MANAGED`/`_UNMANAGED`. I could not find `XR_ACTIVITY_START_MODE_HOME_SPACE_MANAGED` documented anywhere, could not load the platform `android.window.WindowProperties` reference page (404) or the `androidx.xr.runtime.manifest` reference page (JS-rendered, didn't return content) to arbitrate, and could not find it in AOSP source search either. Given this project's own docs elsewhere note the sample repo consistently runs ahead of/differently from documented floors, treat this as **a real, unresolved discrepancy** — verify the exact constant name against the IDE's autocomplete/current SDK stubs before shipping a manifest declaration, rather than trusting either source blindly.
+- **No manifest attribute of any kind is required purely to "support" the transition itself** — nothing here is XR-transition-specific configuration; it's either the standard XR feature declaration or the optional start-mode hint.
+
+### 4. How does Compose observe the change?
+
+- **`LocalSpatialCapabilities.current`** — **CONFIRMED** automatic: it's an ordinary `CompositionLocal`, and per the docs, Compose recomposes automatically when the underlying capabilities change; "no manual listener setup is required." This is what the project's existing `isSpatialUiEnabled` branch already relies on — it needs no new code to react to a transition.
+- **`LocalSpatialConfiguration.current`** — a second, related `CompositionLocal` (exposes `hasXrSpatialFeature`, used to decide whether to show a space-toggle affordance at all); same auto-recomposition model applies since it's also a `CompositionLocal` sourced from the same `Session`.
+- **Caveat already in this doc (still applies):** both of the above can transiently resolve to `null`/non-XR defaults before the `Session` finishes initializing (confirmed via `xr-compose:1.0.0-alpha16` changelog: *"Once the `Session` is available, recomposition will be triggered with the correct state"*) — relevant on cold start, not specific to the Home↔Full toggle itself.
+- **SceneCore-level listeners (for code outside Compose, or lower-level reactions):**
+  - `Scene.addSpatialCapabilitiesChangedListener(callbackExecutor: Executor, listener: Consumer<Set<SpatialCapability>>)` — CONFIRMED via source (AOSP mirror of `Scene.kt`) and the official [Check for spatial capabilities](https://developer.android.com/develop/xr/jetpack-xr-sdk/check-spatial-capabilities) page, which also shows a simpler single-lambda call form in sample code (`addSpatialCapabilitiesChangedListener { capabilities -> ... }`), implying a convenience overload defaulting the executor.
+  - `Scene.setSpatialModeChangedListener(callbackExecutor: Executor, listener: Consumer<SpatialModeChangeEvent>)` — CONFIRMED via source and via the `xr-scenecore` changelog (introduced under this name in alpha07, replacing an earlier `SpatialModeChangeListener` property). Doc comment: "Sets the listener to be invoked when the spatial mode for the scene has changed... Only one listener can be active at a time." This is the specific, dedicated callback for space-mode transitions (as distinct from the broader capabilities-changed listener). I could not retrieve the exact member fields of `SpatialModeChangeEvent` itself (JS-rendered reference page) — verify its shape directly against the SDK before depending on specific fields.
+  - **No Flow-based API was found or confirmed** at either layer — only `Consumer`/listener callbacks (Java-interop-friendly) at the SceneCore layer, and `CompositionLocal` reactivity at the Compose layer. If you want a `Flow`, you'd need to wrap one of these listeners yourself (`callbackFlow { ... }`); that wrapper is not provided by the SDK.
+
+### 5. `PROPERTY_XR_ACTIVITY_START_MODE` — per-value semantics
+
+| Value | Status | Meaning |
+|---|---|---|
+| `XR_ACTIVITY_START_MODE_HOME_SPACE` | CONFIRMED | *"Use this start mode to launch your app in Home Space. In Home Space, multiple apps can run side-by-side, so users can multitask. Any mobile or large screen Android app can operate in Home Space, as well as XR apps built using the Jetpack XR SDK."* |
+| `XR_ACTIVITY_START_MODE_FULL_SPACE_MANAGED` | CONFIRMED | *"Use this start mode to launch your app in Full Space. In Full Space, only one app runs at a time, with no space boundaries, and all other apps are hidden."* "Managed" = the **system** still manages window/session chrome and affordances for you (as opposed to unmanaged, below). Docs recommend it "only if it is unlikely that users would like to use another app simultaneously." |
+| `XR_ACTIVITY_START_MODE_FULL_SPACE_UNMANAGED` | CONFIRMED | For **OpenXR**-based apps, not Jetpack XR SDK Compose/SceneCore apps: *"Apps built with OpenXR launch in Full Space and must use `XR_ACTIVITY_START_MODE_FULL_SPACE_UNMANAGED` start mode. Unmanaged Full Space signals to Android XR the app uses OpenXR."* Not relevant to a Compose-for-XR app unless it also embeds an OpenXR/game-engine surface. |
+| `XR_ACTIVITY_START_MODE_UNDEFINED` | **NOT FOUND** | I could not locate this value on any developer.android.com prose page, any `xr-compose`/`xr-scenecore`/`xr-runtime` release-note changelog, the XR Fundamentals codelabs, or the official sample. The platform reference page (`android.window.WindowProperties`) 404'd and the `androidx.xr.runtime.manifest` API reference page is JS-rendered and didn't yield content through available tooling. Treat its existence/behavior as **unconfirmed** — plausible as a platform-side sentinel/default enum value, but I have no documented evidence either way. |
+
+- **Scope:** CONFIRMED — declarable at either `<activity>` or `<application>` level; activity-level scopes the preference to that activity.
+- **Normal-phone install behavior (`FULL_SPACE_MANAGED` on a non-XR phone):** **NOT explicitly documented either way** — I found no compatibility statement addressing this directly, despite specifically searching the "5 things you need to know about publishing... for Android XR" blog post and the immersive-experiences guide. **INFERRED** (from ordinary Android `<property>` manifest-tag semantics — a `<property>` element is inert metadata unless a specific platform component calls `PackageManager.getProperty()` for that exact name, and a normal phone's window manager has no XR "start mode" concept to consult): declaring it and installing on a normal phone should be a silent no-op — the app just launches as an ordinary 2D activity — not an install failure or crash. I'd verify this empirically before relying on it, since it's inference, not a doc guarantee.
+- **Is declaring the property alone sufficient to "launch spatial," or is more required?** **CONFIRMED more is required.** The start-mode property only decides which space the (otherwise-ordinary) Activity opens into — it does not create any spatial content by itself. Per confirmed facts elsewhere in this doc, `Subspace{}` content simply isn't composed unless the app is actually in Full Space, and an app with no `Subspace`/`SpatialPanel` content (or no `EnableXrComponentOverrides`-wrapped adaptive panes) will just present its ordinary single 2D panel — now alone in an otherwise-empty Full Space, which is unlikely to be the intended effect. **INFERRED** consequence: don't set `FULL_SPACE_MANAGED` as a way to "turn on" spatial UI — it only chooses the space the app starts in; you still need real `Subspace` content (or Material3-XR overrides) for that space to be visually worth entering.
+
+### 6. Known state-loss / lifecycle pitfalls
+
+- **CONFIRMED, and the one concrete action item:** anything held only in `remember{}` **inside** a `Subspace {}` block is disposed every time the app leaves Full Space and freshly re-created every time it re-enters — because that subtree is documented as not being part of the Composition at all outside Full Space. Officially documented mitigation: hoist state above/outside the `Subspace` call (the codelab's own example: `var currentEnvironmentOptionIndex by remember { mutableStateOf(0) }` declared *outside* `Subspace { ... }`).
+- **CONFIRMED, historical, now fixed:** `xr-scenecore:1.0.0-alpha10` (Dec 3, 2025) changelog: *"Fixed a potential crash that can occur when Session is destroyed and a `SpatialModeChangeEvent` is received"* and, same release, *"Fixed a bug which could cause an `IllegalStateException` to be thrown when leaving or re-entering an Activity."* These confirm real races existed between Session teardown and in-flight space-mode-change events, and between Activity backgrounding/foregrounding and SceneCore state — both are reported fixed by alpha10, well before the current beta02, but they're useful evidence that Session/Activity boundary races in this area are a known class of bug, not a hypothetical.
+- **CONFIRMED (already in this doc, still relevant here):** `LocalSession` and everything derived from it can transiently be `null`/non-XR-default before the `Session` finishes initializing (alpha16) — a cold-start/process-restart risk that compounds if code reads space-mode state too eagerly, though it is not itself caused by the Home↔Full toggle.
+- **No official page documents Compose-state loss, Activity destruction, or session invalidation as a general consequence of the Home↔Full toggle itself** — the only officially documented state-loss mechanism is the `Subspace` mount/unmount behavior above.
+
+### Decision-ready takeaway for this project
+
+Given the app already keeps its real state in a process-retained `ViewModel` (config-change-safe) with a `SavedStateHandle` snapshot (process-death-safe), and already branches on `LocalSpatialCapabilities.current.isSpatialUiEnabled`:
+
+1. **You do not need to build a space-toggle control.** The system provides one for free (the window-chrome expand/compact button, confirmed via Google's own Android XR Help docs). Adding `SpaceToggleButton` from `androidx.xr.compose.material3` is a same-day, one-line nicety, not a requirement.
+2. **"Handling the transition" is, on current evidence, free at the Activity/ViewModel level** — nothing found in official docs indicates the transition recreates the Activity, delivers `onConfigurationChanged`, or invalidates your `ViewModel`/`SavedStateHandle`. `LocalSpatialCapabilities` will just recompose your existing `if (isSpatialUiEnabled)` branch automatically.
+3. **The one real piece of work:** audit for any `remember { ... }` state declared directly inside a `Subspace { ... }` block (e.g., a spatial-only panel's scroll position or transient UI toggle). Anything living only there will reset on every Home↔Full round-trip and must be hoisted to the ViewModel (or to a `remember`/`rememberSaveable` outside the `Subspace` call) if it needs to survive.
+4. **Manifest-wise, there is nothing to add specifically for the transition** — no `configChanges`, no `resizeableActivity`. The only optional manifest touch is `PROPERTY_XR_ACTIVITY_START_MODE` if you want to control the *initial* launch space, and it's inert on a normal phone.
+
+### Sources (transition deep-dive)
+
+- [Transition from Home Space to Full Space](https://developer.android.com/develop/xr/jetpack-xr-sdk/transition-home-space-to-full-space)
+- [Check for spatial capabilities](https://developer.android.com/develop/xr/jetpack-xr-sdk/check-spatial-capabilities)
+- [Add a subspace to your app](https://developer.android.com/develop/xr/jetpack-xr-sdk/add-subspace)
+- [Get started building immersive experiences](https://developer.android.com/develop/xr/jetpack-xr-sdk/build-immersive)
+- [Get started with OpenXR for Android XR](https://developer.android.com/develop/xr/openxr/get-started)
+- [Bring your Android app into 3D with XR](https://developer.android.com/develop/xr/jetpack-xr-sdk/add-xr-to-existing)
+- [Learn Android XR Fundamentals: Part 1 — Modes and Spatial Panels](https://developer.android.com/codelabs/xr-fundamentals-part-1)
+- [Learn Android XR Fundamentals: Part 2 — Orbiters and Spatial Environments](https://developer.android.com/codelabs/xr-fundamentals-part-2)
+- [Foundations (Android XR design guide)](https://developer.android.com/design/ui/xr/guides/foundations)
+- [Spatial UI (Android XR design guide)](https://developer.android.com/design/ui/xr/guides/spatial-ui)
+- [Support desktop windowing](https://developer.android.com/develop/ui/compose/layouts/adaptive/support-desktop-windowing)
+- [Spaces & multitasking on Android XR (Google Help Center, end-user docs)](https://support.google.com/android-xr/answer/16638859?hl=en)
+- [Learn how to navigate on your Android XR device (Google Help Center)](https://support.google.com/android-xr/answer/16639048)
+- [XR SceneCore release notes](https://developer.android.com/jetpack/androidx/releases/xr-scenecore)
+- [XR Compose release notes](https://developer.android.com/jetpack/androidx/releases/xr-compose)
+- [XR Runtime release notes](https://developer.android.com/jetpack/androidx/releases/xr-runtime)
+- [`Scene.kt` source (AOSP mirror, `platform/frameworks/support`)](https://android.googlesource.com/platform/frameworks/support/+/3509edb358ab2e073ced187c3b3823a09834a6ca/xr/scenecore/scenecore/src/main/java/androidx/xr/scenecore/Scene.kt)
+- [`android/xr-samples` — `AndroidManifest.xml`](https://github.com/android/xr-samples/blob/main/app/src/main/AndroidManifest.xml)
+
 ## Sources
 
 - [Android XR (overview)](https://developer.android.com/develop/xr)
@@ -728,3 +864,13 @@ defaultConfig {
 - [Implement Material Design for your spatial UI](https://developer.android.com/develop/xr/jetpack-xr-sdk/material-design)
 - [Compose Material 3 Adaptive release notes](https://developer.android.com/jetpack/androidx/releases/compose-material3-adaptive)
 - [Android XR spatial UI design guide](https://developer.android.com/design/ui/xr/guides/spatial-ui)
+- [Check for spatial capabilities](https://developer.android.com/develop/xr/jetpack-xr-sdk/check-spatial-capabilities)
+- [Add a subspace to your app](https://developer.android.com/develop/xr/jetpack-xr-sdk/add-subspace)
+- [Get started with OpenXR for Android XR](https://developer.android.com/develop/xr/openxr/get-started)
+- [Learn Android XR Fundamentals: Part 1 — Modes and Spatial Panels](https://developer.android.com/codelabs/xr-fundamentals-part-1)
+- [Learn Android XR Fundamentals: Part 2 — Orbiters and Spatial Environments](https://developer.android.com/codelabs/xr-fundamentals-part-2)
+- [Foundations (Android XR design guide)](https://developer.android.com/design/ui/xr/guides/foundations)
+- [Support desktop windowing](https://developer.android.com/develop/ui/compose/layouts/adaptive/support-desktop-windowing)
+- [Spaces & multitasking on Android XR (Google Help Center)](https://support.google.com/android-xr/answer/16638859?hl=en)
+- [Learn how to navigate on your Android XR device (Google Help Center)](https://support.google.com/android-xr/answer/16639048)
+- [`Scene.kt` source (AOSP mirror)](https://android.googlesource.com/platform/frameworks/support/+/3509edb358ab2e073ced187c3b3823a09834a6ca/xr/scenecore/scenecore/src/main/java/androidx/xr/scenecore/Scene.kt)
