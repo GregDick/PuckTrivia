@@ -4,6 +4,15 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!--
+      Optional XR support. required="false" is what keeps the app installable on
+      phones and tablets: the spatial layout is selected at runtime by
+      isSpatialUiEnabled(), never by device type.
+    -->
+    <uses-feature
+        android:name="android.software.xr.api.spatial"
+        android:required="false" />
+
     <application
         android:name=".PuckTriviaApplication"
         android:allowBackup="true"
@@ -24,6 +33,15 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!--
+              Launch windowed in Home Space; the player expands into Full Space with
+              the in-app toggle. Stated explicitly rather than relying on the
+              platform default so the intent is visible in the manifest.
+            -->
+            <property
+                android:name="android.window.PROPERTY_XR_ACTIVITY_START_MODE"
+                android:value="XR_ACTIVITY_START_MODE_HOME_SPACE" />
         </activity>
     </application>
 
