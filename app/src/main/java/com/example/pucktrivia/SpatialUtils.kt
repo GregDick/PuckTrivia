@@ -1,12 +1,8 @@
 package com.example.pucktrivia
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalContext
 import androidx.xr.compose.platform.LocalSpatialCapabilities
-
-/** Manifest feature declaring optional Android XR spatial support. */
-private const val XR_SPATIAL_FEATURE = "android.software.xr.api.spatial"
+import androidx.xr.compose.platform.LocalSpatialConfiguration
 
 /**
  * Returns true when the runtime can render spatial UI right now.
@@ -32,7 +28,4 @@ internal fun isSpatialUiEnabled(): Boolean = LocalSpatialCapabilities.current.is
  * the state it exists to escape.
  */
 @Composable
-internal fun isXrDevice(): Boolean {
-    val context = LocalContext.current
-    return remember(context) { context.packageManager.hasSystemFeature(XR_SPATIAL_FEATURE) }
-}
+internal fun isXrDevice(): Boolean = LocalSpatialConfiguration.current.hasXrSpatialFeature
