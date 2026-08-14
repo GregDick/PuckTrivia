@@ -299,9 +299,15 @@ private fun TriviaQuestionScreenLandscape(
     }
 }
 
-/** Shared answer button used by both portrait and landscape layouts. */
+/**
+ * Shared answer button used by the portrait, landscape, and spatial layouts.
+ *
+ * Internal rather than private so [TriviaQuestionScreenSpatial] can reuse it verbatim — that reuse
+ * is what keeps the correct/incorrect coloring and disabled-after-answer behavior identical across
+ * all three layouts instead of drifting.
+ */
 @Composable
-private fun AnswerButton(
+internal fun AnswerButton(
     player: StatLeader,
     statUnitLabel: String,
     answered: Boolean,
