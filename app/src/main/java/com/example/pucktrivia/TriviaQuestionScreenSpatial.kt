@@ -8,7 +8,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -70,14 +74,14 @@ fun TriviaQuestionScreenSpatial(
 ) {
     Subspace {
         SpatialRow {
-            // The space-mode toggle is chrome, not content: an Orbiter floats it outside the panel
-            // bounds, so it costs no layout space and cannot collide with the status row.
+            // App chrome, floated above the panels rather than taking layout space inside one.
             //
             // Declared on the SpatialRow rather than inside a panel, so it anchors to the panel
-            // *group* and stays at the group's top-right corner even after the player drags or
+            // *group*: it spans the full group width and stays put when the player drags or
             // resizes either panel. An Orbiter's spatial parent is the nearest enclosing spatial
-            // component, which is the row here.
-            Orbiter(alignment = OrbiterAlignment.TopEnd()) { SpaceModeToggle() }
+            // component, and an Orbiter cannot exceed that parent's dimensions — so anchoring to
+            // the row is also what makes a full-width bar possible at all.
+            Orbiter(alignment = OrbiterAlignment.TopCenter()) { SpatialTopAppBar() }
 
             SpatialPanel(
                 modifier =
@@ -231,6 +235,30 @@ private fun AnswerPanelContent(
             }
         }
     }
+}
+
+/**
+ * Full-width top app bar floated above the panel group, carrying the space-mode toggle.
+ *
+ * Sized to the [SpatialRow] it orbits, so it reads as app chrome spanning the whole layout rather
+ * than a control belonging to either panel.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SpatialTopAppBar() {
+    TopAppBar(
+        title = { Text(text = "Puck Trivia", style = MaterialTheme.typography.titleLarge) },
+        actions = { SpaceModeToggle(modifier = Modifier.padding(end = 12.dp)) },
+        // The orbiter floats free of the activity window, so system bar insets do not apply and
+        // would only add dead space above the title.
+        windowInsets = WindowInsets(0, 0, 0, 0),
+        colors =
+            TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                titleContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            ),
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 /**
