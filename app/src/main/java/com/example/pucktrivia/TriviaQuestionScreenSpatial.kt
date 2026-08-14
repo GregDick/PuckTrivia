@@ -52,7 +52,8 @@ private val PanelResizePolicy = ResizePolicy()
  * built by hand rather than via `EnableXrComponentOverrides` on a Material3 pane scaffold — see the
  * feature plan's Approach section for why.
  *
- * Only rendered when [isSpatialUiEnabled] is true, which means the app is in Full Space.
+ * Only rendered when `LocalSpatialCapabilities.current.isSpatialUiEnabled` is true, which means
+ * the app is in Full Space.
  */
 @Composable
 fun TriviaQuestionScreenSpatial(

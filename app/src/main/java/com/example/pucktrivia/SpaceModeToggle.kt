@@ -10,6 +10,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.xr.compose.platform.LocalSession
+import androidx.xr.compose.platform.LocalSpatialCapabilities
 import androidx.xr.scenecore.scene
 
 private val TOGGLE_TARGET = 64.dp
@@ -33,13 +34,16 @@ private const val GLYPH_COLLAPSE = "⊟"
  * Deliberately oversized relative to Material's 48/24dp default — at headset viewing distance the
  * default is easy to miss, and the failure mode being designed against is invisibility.
  *
- * Callers must gate this on [isXrDevice], not [isSpatialUiEnabled]: the latter is false in Home
- * Space, which would hide the button in exactly the state it exists to escape.
+ * Callers must gate this on `LocalSpatialConfiguration.current.hasXrSpatialFeature`, not on
+ * `isSpatialUiEnabled`: the latter is false in Home Space, which would hide the button in
+ * exactly the state it exists to escape.
  */
 @Composable
 internal fun SpaceModeToggle(modifier: Modifier = Modifier) {
     val session = LocalSession.current ?: return
-    val spatial = isSpatialUiEnabled()
+    // False in Home Space even on a headset — here that is exactly right, since it decides
+    // which direction the toggle points rather than whether it is shown.
+    val spatial = LocalSpatialCapabilities.current.isSpatialUiEnabled
     val description = if (spatial) "Return to home space" else "Expand to full space"
 
     FilledTonalIconButton(

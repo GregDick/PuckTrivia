@@ -20,7 +20,7 @@ import org.junit.Test
 /**
  * Covers the routing decision extracted from `MainActivity` for the XR work.
  *
- * The spatial layout is chosen by `isSpatialUiEnabled() && route == Question`. The capability half
+ * The spatial layout is chosen by `isSpatialUiEnabled && route == Question`. The capability half
  * is a CompositionLocal that needs a headset, but *which route we are on* is plain logic — so this
  * is where layout selection is actually verifiable without a device.
  */

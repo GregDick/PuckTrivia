@@ -19,6 +19,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.xr.compose.platform.LocalSpatialCapabilities
+import androidx.xr.compose.platform.LocalSpatialConfiguration
 import com.example.pucktrivia.model.SeasonMode
 import com.example.pucktrivia.ui.theme.PuckTriviaTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -41,13 +43,22 @@ class MainActivity : ComponentActivity() {
                 // wrong shape for it. Routing still lives in exactly one place (triviaRouteFor), so
                 // the 2D path below is unchanged for phones, tablets, and Home Space on a headset.
                 //
-                // Only the Question screen opens a subspace. Every other screen falls through to
-                // the 2D branch and renders in the activity's main panel, which the system sizes —
-                // including while in Full Space. Subspace disables the main panel entity on first
-                // use and re-enables it when the last subspace disposes (androidx.xr.compose
-                // Subspace.kt:181-197, refcounted via SceneManager.getSceneCount), so leaving the
-                // Question screen restores the flat panel on its own.
-                if (isSpatialUiEnabled() && route == TriviaRoute.Question) {
+                // Only the Question screen opens a subspace *for now* — the intent is for every
+                // route to get a spatial layout on XR devices, at which point the route check
+                // drops out and this becomes a plain capability branch. Deliberately left inline
+                // rather than extracted behind a named helper, since the conjunction is a
+                // waypoint rather than a rule worth naming.
+                //
+                // Meanwhile every other screen falls through to the 2D branch and renders in the
+                // activity's main panel, which the system sizes — including while in Full Space.
+                // Subspace disables the main panel entity on first use and re-enables it when the
+                // last subspace disposes (androidx.xr.compose Subspace.kt:181-197, refcounted via
+                // SceneManager.getSceneCount), so leaving the Question screen restores the flat
+                // panel on its own.
+                if (
+                    LocalSpatialCapabilities.current.isSpatialUiEnabled &&
+                        route == TriviaRoute.Question
+                ) {
                     SpatialQuestionRoute(viewModel)
                 } else {
                     Box(modifier = Modifier.fillMaxSize()) {
@@ -61,7 +72,11 @@ class MainActivity : ComponentActivity() {
 
                         // Persistent on every 2D screen, because it is the only path into Full
                         // Space — the XR system chrome offers minimize and close but no expand.
-                        if (isXrDevice()) {
+                        //
+                        // Gated on hasXrSpatialFeature, NOT isSpatialUiEnabled: the latter is
+                        // false in Home Space even on a headset, so it would hide the control
+                        // in exactly the state it exists to escape.
+                        if (LocalSpatialConfiguration.current.hasXrSpatialFeature) {
                             SpaceModeToggle(
                                 modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
                             )
