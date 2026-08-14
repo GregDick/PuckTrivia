@@ -17,6 +17,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.xr.compose.spatial.Subspace
+import androidx.xr.compose.subspace.MovePolicy
+import androidx.xr.compose.subspace.ResizePolicy
 import androidx.xr.compose.subspace.SpatialColumn
 import androidx.xr.compose.subspace.SpatialPanel
 import androidx.xr.compose.subspace.SpatialRow
@@ -34,6 +36,13 @@ private val STATUS_PANEL_HEIGHT = 180.dp
 private val CONTENT_PANEL_WIDTH = 640.dp
 private val CONTENT_PANEL_HEIGHT = 640.dp
 private val PANEL_GAP = 32.dp
+
+// Platform-default move and resize behavior, shared so all three panels behave identically.
+// Both policies default to isEnabled = true; passing null (the SpatialPanel default) leaves a
+// panel pinned and non-resizable. Panel content is laid out with fillMaxSize, so it reflows
+// rather than clipping when the user resizes.
+private val PanelMovePolicy = MovePolicy()
+private val PanelResizePolicy = ResizePolicy()
 
 /**
  * Spatial layout for the Question screen: a wide status panel above a question panel and an
@@ -67,7 +76,9 @@ fun TriviaQuestionScreenSpatial(
                 modifier =
                     SubspaceModifier.width(STATUS_PANEL_WIDTH)
                         .height(STATUS_PANEL_HEIGHT)
-                        .padding(PANEL_GAP)
+                        .padding(PANEL_GAP),
+                dragPolicy = PanelMovePolicy,
+                resizePolicy = PanelResizePolicy,
             ) {
                 StatusPanelContent(
                     score = score,
@@ -84,7 +95,9 @@ fun TriviaQuestionScreenSpatial(
                     modifier =
                         SubspaceModifier.width(CONTENT_PANEL_WIDTH)
                             .height(CONTENT_PANEL_HEIGHT)
-                            .padding(PANEL_GAP)
+                            .padding(PANEL_GAP),
+                    dragPolicy = PanelMovePolicy,
+                    resizePolicy = PanelResizePolicy,
                 ) {
                     QuestionPanelContent(
                         questionText = questionText,
@@ -97,7 +110,9 @@ fun TriviaQuestionScreenSpatial(
                     modifier =
                         SubspaceModifier.width(CONTENT_PANEL_WIDTH)
                             .height(CONTENT_PANEL_HEIGHT)
-                            .padding(PANEL_GAP)
+                            .padding(PANEL_GAP),
+                    dragPolicy = PanelMovePolicy,
+                    resizePolicy = PanelResizePolicy,
                 ) {
                     AnswerPanelContent(
                         statUnitLabel = statUnitLabel,
