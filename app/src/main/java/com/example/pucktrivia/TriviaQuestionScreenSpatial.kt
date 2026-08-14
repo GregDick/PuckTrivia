@@ -17,15 +17,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.xr.compose.spatial.Orbiter
-import androidx.xr.compose.spatial.OrbiterAnchorPoint
+import androidx.xr.compose.spatial.OrbiterAlignment
 import androidx.xr.compose.spatial.Subspace
-import androidx.xr.compose.subspace.MovePolicy
-import androidx.xr.compose.subspace.ResizePolicy
 import androidx.xr.compose.subspace.SpatialPanel
 import androidx.xr.compose.subspace.SpatialRow
 import androidx.xr.compose.subspace.layout.SubspaceModifier
 import androidx.xr.compose.subspace.layout.height
+import androidx.xr.compose.subspace.layout.movable
 import androidx.xr.compose.subspace.layout.padding
+import androidx.xr.compose.subspace.layout.resizable
 import androidx.xr.compose.subspace.layout.width
 import com.example.pucktrivia.model.SeasonMode
 import com.example.pucktrivia.model.StatLeader
@@ -40,16 +40,10 @@ private val ANSWER_PANEL_WIDTH = 560.dp
 private val CONTENT_PANEL_HEIGHT = 640.dp
 private val PANEL_GAP = 32.dp
 
-// Platform-default move and resize behavior, shared so all three panels behave identically.
-// Both policies default to isEnabled = true; passing null (the SpatialPanel default) leaves a
-// panel pinned and non-resizable. Panel content is laid out with fillMaxSize, so it reflows
-// rather than clipping when the user resizes.
-private val PanelMovePolicy = MovePolicy()
-private val PanelResizePolicy = ResizePolicy()
-
 /**
- * Spatial layout for the Question screen: a wide status panel above a question panel and an
- * answer-choices panel side by side, each its own [SpatialPanel].
+ * Spatial layout for the Question screen: two [SpatialPanel]s side by side — a question panel
+ * carrying the status row (score / lives / season / feedback) above the question text and Next
+ * button, and an answer-choices panel beside it.
  *
  * Takes the same parameters as [TriviaQuestionScreen] so the call site is a drop-in. Panels are
  * built by hand rather than via `EnableXrComponentOverrides` on a Material3 pane scaffold — see the
@@ -76,13 +70,22 @@ fun TriviaQuestionScreenSpatial(
 ) {
     Subspace {
         SpatialRow {
+            // The space-mode toggle is chrome, not content: an Orbiter floats it outside the panel
+            // bounds, so it costs no layout space and cannot collide with the status row.
+            //
+            // Declared on the SpatialRow rather than inside a panel, so it anchors to the panel
+            // *group* and stays at the group's top-right corner even after the player drags or
+            // resizes either panel. An Orbiter's spatial parent is the nearest enclosing spatial
+            // component, which is the row here.
+            Orbiter(alignment = OrbiterAlignment.TopEnd()) { SpaceModeToggle() }
+
             SpatialPanel(
                 modifier =
                     SubspaceModifier.width(QUESTION_PANEL_WIDTH)
                         .height(CONTENT_PANEL_HEIGHT)
-                        .padding(PANEL_GAP),
-                dragPolicy = PanelMovePolicy,
-                resizePolicy = PanelResizePolicy,
+                        .padding(PANEL_GAP)
+                        .movable()
+                        .resizable()
             ) {
                 QuestionPanelContent(
                     score = score,
@@ -100,17 +103,10 @@ fun TriviaQuestionScreenSpatial(
                 modifier =
                     SubspaceModifier.width(ANSWER_PANEL_WIDTH)
                         .height(CONTENT_PANEL_HEIGHT)
-                        .padding(PANEL_GAP),
-                dragPolicy = PanelMovePolicy,
-                resizePolicy = PanelResizePolicy,
+                        .padding(PANEL_GAP)
+                        .movable()
+                        .resizable()
             ) {
-                // The space-mode toggle is chrome, not content: an Orbiter floats it outside the
-                // panel bounds, so it costs no layout space and cannot collide with the status row.
-                // Anchored to the answers panel (the rightmost one) so it lands at the top-right of
-                // the whole group — the same corner it occupies in the 2D layout. An Orbiter must
-                // live inside a SpatialPanel; there is no anchor for a SpatialRow/Column group.
-                Orbiter(anchorPoint = OrbiterAnchorPoint.TopEnd) { SpaceModeToggle() }
-
                 AnswerPanelContent(
                     statUnitLabel = statUnitLabel,
                     choices = choices,
