@@ -5,7 +5,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,11 +19,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.xr.compose.spatial.Subspace
-import androidx.xr.compose.subspace.SpatialPanel
-import androidx.xr.compose.subspace.layout.SubspaceModifier
-import androidx.xr.compose.subspace.layout.height
-import androidx.xr.compose.subspace.layout.width
 import com.example.pucktrivia.model.SeasonMode
 import com.example.pucktrivia.ui.theme.PuckTriviaTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -47,15 +41,14 @@ class MainActivity : ComponentActivity() {
                 // wrong shape for it. Routing still lives in exactly one place (triviaRouteFor), so
                 // the 2D path below is unchanged for phones, tablets, and Home Space on a headset.
                 //
-                // Every route must go through a subspace in Full Space, not just the Question
-                // screen: once spatial UI is available the activity's flat content is no longer
-                // placed on its own, so a 2D-only branch here renders nothing at all.
-                if (isSpatialUiEnabled()) {
-                    if (route == TriviaRoute.Question) {
-                        SpatialQuestionRoute(viewModel)
-                    } else {
-                        SpatialSinglePanelRoute(route, viewModel)
-                    }
+                // Only the Question screen opens a subspace. Every other screen falls through to
+                // the 2D branch and renders in the activity's main panel, which the system sizes —
+                // including while in Full Space. Subspace disables the main panel entity on first
+                // use and re-enables it when the last subspace disposes (androidx.xr.compose
+                // Subspace.kt:181-197, refcounted via SceneManager.getSceneCount), so leaving the
+                // Question screen restores the flat panel on its own.
+                if (isSpatialUiEnabled() && route == TriviaRoute.Question) {
+                    SpatialQuestionRoute(viewModel)
                 } else {
                     Box(modifier = Modifier.fillMaxSize()) {
                         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
@@ -75,27 +68,6 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
-            }
-        }
-    }
-}
-
-/**
- * Every non-Question screen while in Full Space: the ordinary 2D content, hosted in a single
- * spatial panel.
- *
- * These screens are deliberately not split into multiple panels — but they still have to be placed
- * in the subspace, or they render nowhere.
- */
-@Composable
-private fun SpatialSinglePanelRoute(route: TriviaRoute, viewModel: TriviaViewModel) {
-    Subspace {
-        SpatialPanel(modifier = SubspaceModifier.width(1280.dp).height(800.dp)) {
-            Box(
-                modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
-            ) {
-                TriviaContent(route = route, viewModel = viewModel)
-                SpaceModeToggle(modifier = Modifier.align(Alignment.TopEnd).padding(16.dp))
             }
         }
     }
