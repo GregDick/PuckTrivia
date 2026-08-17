@@ -1,22 +1,14 @@
 package com.example.pucktrivia
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -37,6 +29,10 @@ import com.example.pucktrivia.model.StatLeader
 // Panel dimensions are Dp on SubspaceModifier, not meters — treat them as tablet-scale pixel
 // sizes. Tuned by eye on the XR emulator; expect to revisit on real hardware.
 //
+// The Horizon OS flavor sizes the same two panels in *meters* instead
+// (PuckTriviaImmersiveActivity's QuadShapeOptions), which is the sharpest single difference
+// between the two stacks.
+//
 // The question panel is wider than the answer panel because it now carries the status row
 // (score / lives / season) that used to have its own panel above the pair.
 private val QUESTION_PANEL_WIDTH = 700.dp
@@ -45,16 +41,19 @@ private val CONTENT_PANEL_HEIGHT = 640.dp
 private val PANEL_GAP = 32.dp
 
 /**
- * Spatial layout for the Question screen: two [SpatialPanel]s side by side — a question panel
- * carrying the status row (score / lives / season / feedback) above the question text and Next
- * button, and an answer-choices panel beside it.
+ * Android XR spatial layout for the Question screen: two [SpatialPanel]s side by side — a question
+ * panel carrying the status row (score / lives / season / feedback) above the question text and
+ * Next button, and an answer-choices panel beside it.
  *
  * Takes the same parameters as [TriviaQuestionScreen] so the call site is a drop-in. Panels are
  * built by hand rather than via `EnableXrComponentOverrides` on a Material3 pane scaffold — see the
  * feature plan's Approach section for why.
  *
- * Only rendered when `LocalSpatialCapabilities.current.isSpatialUiEnabled` is true, which means
- * the app is in Full Space.
+ * Only rendered when `LocalSpatialCapabilities.current.isSpatialUiEnabled` is true, which means the
+ * app is in Full Space.
+ *
+ * Panel *contents* live in `TriviaPanelContent.kt` in the shared source set, because the Horizon OS
+ * flavor renders exactly the same two panes inside Meta Spatial SDK panel entities.
  */
 @Composable
 fun TriviaQuestionScreenSpatial(
@@ -125,119 +124,6 @@ fun TriviaQuestionScreenSpatial(
 }
 
 /**
- * Status, question, and the Next button — everything except the answer choices.
- *
- * Score / lives / season sit at the top of this panel rather than in a panel of their own. A third
- * panel made the trio independently draggable once move policies were enabled, which let a player
- * pull the score away from the question it belongs to.
- *
- * Unlike the 2D layouts this needs no fixed-height spacer boxes around the feedback text or the
- * Next button: the answer choices live on a separate panel, so nothing here can shift them.
- */
-@Composable
-private fun QuestionPanelContent(
-    score: Int,
-    lives: Int,
-    livesColor: Color,
-    seasonMode: SeasonMode,
-    questionText: String,
-    answered: Boolean,
-    isCorrect: Boolean,
-    onNextRound: () -> Unit,
-) {
-    PuckTriviaPanel {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "Score: $score",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                Text(
-                    text = "Lives: $lives",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = livesColor,
-                )
-                Text(
-                    text =
-                        when (seasonMode) {
-                            SeasonMode.RegularSeason -> "Regular Season"
-                            SeasonMode.Playoffs -> "Playoffs"
-                        },
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.secondary,
-                )
-            }
-
-            if (answered) {
-                Text(
-                    text = if (isCorrect) "Correct!" else "Incorrect!",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = if (isCorrect) CorrectGreen else MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(top = 16.dp),
-                )
-            }
-
-            Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                Text(
-                    text = questionText,
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-            }
-
-            if (answered) {
-                OutlinedButton(onClick = onNextRound, modifier = Modifier.fillMaxWidth()) {
-                    Text(text = "Next", style = MaterialTheme.typography.bodyLarge)
-                }
-            }
-        }
-    }
-}
-
-/**
- * The answer choices, reusing [AnswerButton] verbatim so correct/incorrect coloring and the
- * disabled-after-answer behavior are identical to the 2D layouts.
- *
- * No `verticalScroll` here: the landscape layout needs it because the landscape viewport is short,
- * but a panel sized for three choices has no such constraint.
- */
-@Composable
-private fun AnswerPanelContent(
-    statUnitLabel: String,
-    choices: List<StatLeader>,
-    selectedPlayerId: Int?,
-    correctPlayerId: Int,
-    answered: Boolean,
-    onAnswerSelected: (Int) -> Unit,
-) {
-    PuckTriviaPanel {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(32.dp),
-            verticalArrangement = Arrangement.Center,
-        ) {
-            choices.forEach { player ->
-                AnswerButton(
-                    player = player,
-                    statUnitLabel = statUnitLabel,
-                    answered = answered,
-                    correctPlayerId = correctPlayerId,
-                    selectedPlayerId = selectedPlayerId,
-                    onAnswerSelected = onAnswerSelected,
-                )
-            }
-        }
-    }
-}
-
-/**
  * Full-width top app bar floated above the panel group, carrying the space-mode toggle.
  *
  * Sized to the [SpatialRow] it orbits, so it reads as app chrome spanning the whole layout rather
@@ -259,15 +145,4 @@ private fun SpatialTopAppBar() {
             ),
         modifier = Modifier.fillMaxWidth(),
     )
-}
-
-/**
- * Shared chrome for panel content: paints the app background so a panel reads as part of Puck
- * Trivia rather than as a transparent cut-out over the passthrough environment.
- */
-@Composable
-private fun PuckTriviaPanel(content: @Composable () -> Unit) {
-    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        content()
-    }
 }

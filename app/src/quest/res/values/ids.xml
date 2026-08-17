@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Panel registration IDs for Meta Spatial SDK.
+
+  A PanelRegistration is a blueprint keyed by an integer; spawning is a separate step that creates
+  an entity referencing the blueprint. Any int works, but resource IDs are used here so the
+  registration and the spawn site can't silently disagree, and so a Spatial Editor composition
+  could later bind to "@id/question_panel" instead of the runtime placement in
+  PuckTriviaImmersiveActivity.
+-->
+<resources>
+    <item name="chrome_panel" type="id" />
+    <item name="question_panel" type="id" />
+    <item name="answer_panel" type="id" />
+</resources>

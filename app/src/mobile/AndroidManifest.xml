@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      Optional Android XR support. required="false" is what keeps the app installable on
+      phones and tablets: the spatial layout is selected at runtime by
+      isSpatialUiEnabled(), never by device type.
+
+      This is Google's Android XR feature string. Horizon OS does not publish it, which is
+      exactly why this declaration is scoped to the mobile flavor.
+    -->
+    <uses-feature
+        android:name="android.software.xr.api.spatial"
+        android:required="false" />
+
+    <application>
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.PuckTrivia">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!--
+              Launch windowed in Home Space; the player expands into Full Space with
+              the in-app toggle. Stated explicitly rather than relying on the
+              platform default so the intent is visible in the manifest.
+            -->
+            <property
+                android:name="android.window.PROPERTY_XR_ACTIVITY_START_MODE"
+                android:value="XR_ACTIVITY_START_MODE_HOME_SPACE" />
+        </activity>
+    </application>
+
+</manifest>

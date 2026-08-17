@@ -16,6 +16,10 @@ datastorePreferences = "1.1.1"
 xrCompose = "1.0.0-alpha17"
 xrScenecore = "1.0.0-beta02"
 xrRuntime = "1.0.0-beta02"
+# Meta Horizon OS. metaSpatial is used for both the Gradle plugin and the artifacts —
+# the plugin generates code against the runtime, so the two must not drift apart.
+metaSpatial = "0.13.2"
+horizonOsX = "0.1.0"
 junitPlatformLauncher = "1.13.4"
 junitPlatformEngine = "1.13.4"
 journeysJunitEngine = "0.2.2"
@@ -48,6 +52,13 @@ androidx-datastore-preferences = { group = "androidx.datastore", name = "datasto
 androidx-xr-compose = { group = "androidx.xr.compose", name = "compose", version.ref = "xrCompose" }
 androidx-xr-scenecore = { group = "androidx.xr.scenecore", name = "scenecore", version.ref = "xrScenecore" }
 androidx-xr-runtime = { group = "androidx.xr.runtime", name = "runtime", version.ref = "xrRuntime" }
+meta-spatial-sdk = { group = "com.meta.spatial", name = "meta-spatial-sdk", version.ref = "metaSpatial" }
+meta-spatial-sdk-toolkit = { group = "com.meta.spatial", name = "meta-spatial-sdk-toolkit", version.ref = "metaSpatial" }
+meta-spatial-sdk-vr = { group = "com.meta.spatial", name = "meta-spatial-sdk-vr", version.ref = "metaSpatial" }
+meta-spatial-sdk-compose = { group = "com.meta.spatial", name = "meta-spatial-sdk-compose", version.ref = "metaSpatial" }
+meta-spatial-sdk-isdk = { group = "com.meta.spatial", name = "meta-spatial-sdk-isdk", version.ref = "metaSpatial" }
+meta-spatial-sdk-castinputforward = { group = "com.meta.spatial", name = "meta-spatial-sdk-castinputforward", version.ref = "metaSpatial" }
+meta-horizonosx-core = { group = "com.meta.horizonosx", name = "core", version.ref = "horizonOsX" }
 junit-platform-launcher = { group = "org.junit.platform", name = "junit-platform-launcher", version.ref = "junitPlatformLauncher" }
 junit-platform-engine = { group = "org.junit.platform", name = "junit-platform-engine", version.ref = "junitPlatformEngine" }
 journeys-junit-engine = { group = "com.android.tools.journeys", name = "journeys-junit-engine", version.ref = "journeysJunitEngine" }
@@ -57,4 +68,5 @@ android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 hilt-android = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+meta-spatial = { id = "com.meta.spatial.plugin", version.ref = "metaSpatial" }
 
