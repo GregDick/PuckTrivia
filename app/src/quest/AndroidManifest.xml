@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:horizonos="http://schemas.horizonos/sdk">
+
+    <!--
+      Horizon OS SDK range, the Horizon-OS analogue of min/targetSdkVersion. Declaring it is what
+      lets the store refuse to install on a headset too old for the APIs used here, instead of the
+      app shipping and failing at the first Platform SDK call with PROVIDER_OPERATION_NOT_SUPPORTED
+      (error 1003).
+
+      min 74 = the Quest 3 / 3S passthrough-camera era, the oldest OS this spike targets.
+    -->
+    <horizonos:uses-horizonos-sdk
+        horizonos:minSdkVersion="74"
+        horizonos:targetSdkVersion="85" />
+
+    <!--
+      required="true" is deliberate and is the line that makes this a VR app rather than a 2D panel
+      app: it tells the store this build only makes sense on a 6DoF headset. The mobile flavor is
+      what serves everything else.
+    -->
+    <uses-feature
+        android:name="android.hardware.vr.headtracking"
+        android:required="true" />
+
+    <uses-feature android:glEsVersion="0x00030001" />
+
+    <!--
+      Hand tracking is required="false": a player can answer with controllers just as well, and
+      demanding hands would exclude nobody usefully while narrowing store eligibility.
+    -->
+    <uses-feature
+        android:name="oculus.software.handtracking"
+        android:required="false" />
+    <uses-permission android:name="com.oculus.permission.HAND_TRACKING" />
+
+    <!--
+      Passthrough, so the trivia panels float in the player's actual room rather than inside a
+      skybox. Optional so the app still runs on a headset with passthrough unavailable — see
+      PuckTriviaImmersiveActivity.onSceneReady, which degrades to a plain black void.
+    -->
+    <uses-feature
+        android:name="com.oculus.feature.PASSTHROUGH"
+        android:required="false" />
+
+    <!-- The system overlay keyboard, for any future text entry (initials on a high score). -->
+    <uses-feature
+        android:name="oculus.software.overlay_keyboard"
+        android:required="false" />
+
+    <application>
+
+        <!--
+          Store-side device filter. Quest 2 is included because the panel layout is 2D UI over
+          passthrough with no heavy 3D content, so it has headroom on the older GPU.
+        -->
+        <meta-data
+            android:name="com.oculus.supportedDevices"
+            android:value="quest2|questpro|quest3" />
+        <meta-data
+            android:name="com.oculus.handtracking.version"
+            android:value="V2.0" />
+        <!--
+          focusaware=true: keep rendering and keep receiving input while a system overlay (the
+          universal menu, a notification, the keyboard) is up. Without it the app is frozen behind
+          every system dialog.
+        -->
+        <meta-data
+            android:name="com.oculus.vr.focusaware"
+            android:value="true" />
+
+        <uses-native-library
+            android:name="libossdk.oculus.so"
+            android:required="true" />
+
+        <activity
+            android:name=".quest.PuckTriviaImmersiveActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="false"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
+            android:configChanges="screenSize|screenLayout|orientation|keyboardHidden|keyboard|navigation|uiMode">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <!--
+                  The VR category is what makes Horizon OS launch this immersively instead of
+                  rendering it as a flat panel in Home. Both categories are needed: LAUNCHER puts
+                  it in the app grid, VR decides how it opens from there.
+                -->
+                <category android:name="com.oculus.intent.category.VR" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+    </application>
+
+</manifest>

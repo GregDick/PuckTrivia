@@ -1,18 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!--
-      Optional XR support. required="false" is what keeps the app installable on
-      phones and tablets: the spatial layout is selected at runtime by
-      isSpatialUiEnabled(), never by device type.
-    -->
-    <uses-feature
-        android:name="android.software.xr.api.spatial"
-        android:required="false" />
+      Platform-neutral half of the manifest. Everything that names an XR stack — the Android XR
+      feature and MainActivity, or the Horizon OS SDK range and the immersive activity — lives in
+      src/mobile and src/quest and is merged in per flavor.
 
+      Note there is no <activity> here at all: each flavor declares its own LAUNCHER. Leaving one
+      here would merge into both flavors and give the quest build two launcher entries.
+    -->
     <application
         android:name=".PuckTriviaApplication"
         android:allowBackup="true"
@@ -22,27 +20,6 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.PuckTrivia">
-        <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:label="@string/app_name"
-            android:theme="@style/Theme.PuckTrivia">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-
-            <!--
-              Launch windowed in Home Space; the player expands into Full Space with
-              the in-app toggle. Stated explicitly rather than relying on the
-              platform default so the intent is visible in the manifest.
-            -->
-            <property
-                android:name="android.window.PROPERTY_XR_ACTIVITY_START_MODE"
-                android:value="XR_ACTIVITY_START_MODE_HOME_SPACE" />
-        </activity>
-    </application>
+        android:theme="@style/Theme.PuckTrivia" />
 
 </manifest>
