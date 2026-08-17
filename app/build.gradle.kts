@@ -122,10 +122,15 @@ dependencies {
     //   meta-spatial-sdk-toolkit  PanelRegistration / Entity.createPanelEntity / AppSystemActivity
     //   meta-spatial-sdk-vr       VRFeature: head tracking, controllers, hands
     //   meta-spatial-sdk-compose  ComposeFeature + ComposeViewPanelRegistration
+    //   meta-spatial-sdk-isdk     IsdkPanelResize — the grab/resize analogue of androidx.xr's
+    //                             .movable() / .resizable(). Interaction SDK itself is already
+    //                             active by way of VRFeature; this artifact is what puts its
+    //                             components on the compile classpath.
     "questImplementation"(libs.meta.spatial.sdk)
     "questImplementation"(libs.meta.spatial.sdk.toolkit)
     "questImplementation"(libs.meta.spatial.sdk.vr)
     "questImplementation"(libs.meta.spatial.sdk.compose)
+    "questImplementation"(libs.meta.spatial.sdk.isdk)
     // Lets a desktop mouse/keyboard drive the headset over cast, so panel layout can be iterated
     // on without donning the device. It opens a local socket, so the feature is registered only
     // under BuildConfig.DEBUG in PuckTriviaImmersiveActivity.registerFeatures.

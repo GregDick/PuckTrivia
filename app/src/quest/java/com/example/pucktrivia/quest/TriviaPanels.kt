@@ -52,9 +52,12 @@ internal fun ChromePanel() {
                 )
 
                 // No Home Space / Full Space toggle exists on Horizon OS — a VR-category activity
-                // is immersive or it is not running — so this slot carries a recenter action
-                // instead. Panels sit at fixed world poses, and a player who moves needs a way to
-                // pull the game back to them.
+                // is immersive or it is not running — so this slot carries a reset action instead.
+                //
+                // With the panels grabbable this is no longer a nicety. Android XR's `.movable()`
+                // panels live inside system chrome that can always retrieve them; a Spatial SDK
+                // entity dragged behind the player or through a wall has no such backstop, so the
+                // app has to provide the way home itself.
                 TextButton(
                     onClick = {
                         // Panel content runs in the panel's own composition, not the VR activity's,
@@ -63,7 +66,7 @@ internal fun ChromePanel() {
                         // direction here is plain shared ViewModel state.
                         SpatialActivityManager.executeOnVrActivity<PuckTriviaImmersiveActivity> {
                             activity ->
-                            activity.onRecenter(isUserInitiated = true)
+                            activity.resetPanelPoses()
                         }
                     }
                 ) {

@@ -18,14 +18,20 @@ import com.meta.spatial.core.Entity
 import com.meta.spatial.core.Pose
 import com.meta.spatial.core.Quaternion
 import com.meta.spatial.core.SpatialFeature
+import com.meta.spatial.core.Vector2
 import com.meta.spatial.core.Vector3
+import com.meta.spatial.isdk.IsdkPanelResize
+import com.meta.spatial.isdk.ResizeMode
 import com.meta.spatial.runtime.ReferenceSpace
 import com.meta.spatial.toolkit.AppSystemActivity
 import com.meta.spatial.toolkit.DpDisplayOptions
+import com.meta.spatial.toolkit.Grabbable
+import com.meta.spatial.toolkit.GrabbableType
 import com.meta.spatial.toolkit.PanelRegistration
 import com.meta.spatial.toolkit.PanelStyleOptions
 import com.meta.spatial.toolkit.QuadShapeOptions
 import com.meta.spatial.toolkit.Transform
+import com.meta.spatial.toolkit.TransformParent
 import com.meta.spatial.toolkit.UIPanelSettings
 import com.meta.spatial.toolkit.createPanelEntity
 import com.meta.spatial.vr.VRFeature
@@ -96,6 +102,14 @@ class PuckTriviaImmersiveActivity : AppSystemActivity() {
      */
     private var answerPanel: Entity? = null
 
+    /**
+     * Held because grab and resize made them mutable: once a player can drag a panel, the activity
+     * needs a handle to put it back. Before Interaction SDK was wired up these were fire-and-forget
+     * spawns.
+     */
+    private var questionPanel: Entity? = null
+    private var chromePanel: Entity? = null
+
     override fun registerFeatures(): List<SpatialFeature> {
         val features =
             mutableListOf<SpatialFeature>(
@@ -143,7 +157,7 @@ class PuckTriviaImmersiveActivity : AppSystemActivity() {
                 settingsCreator = {
                     UIPanelSettings(
                         shape = QuadShapeOptions(width = CHROME_WIDTH_M, height = CHROME_HEIGHT_M),
-                        display = DpDisplayOptions(width = 1330f, height = 112f),
+                        display = DpDisplayOptions(width = 700f, height = 112f),
                         style = PanelStyleOptions(themeResourceId = R.style.Theme_PuckTrivia_Panel),
                     )
                 },
@@ -219,10 +233,92 @@ class PuckTriviaImmersiveActivity : AppSystemActivity() {
      *
      * This mirrors `MainActivity`'s decision to keep a single main panel across every route, with
      * the difference that here "the main panel" is an entity we place ourselves.
+     *
+     * Called once, from [onSceneReady]. Re-seating panels later goes through [resetPanelPoses],
+     * which rewrites the existing entities' [Transform] — spawning again would leave the old
+     * entities in the room alongside the new ones.
      */
     private fun spawnPersistentPanels() {
-        Entity.createPanelEntity(R.id.chrome_panel, Transform(CHROME_POSE))
-        Entity.createPanelEntity(R.id.question_panel, Transform(QUESTION_POSE))
+        questionPanel =
+            Entity.createPanelEntity(
+                R.id.question_panel,
+                Transform(QUESTION_POSE),
+                grabbable(),
+                resizable(),
+            )
+
+        // Parented to the question panel rather than placed in the world, which is what makes this
+        // behave like the mobile flavor's Orbiter: the bar rides along when the player drags or
+        // turns the panel it belongs to, instead of being left hanging in mid-air. Its Transform is
+        // therefore a local offset — straight up from the parent's centre, nudged forward so the
+        // two quads do not z-fight along their shared edge.
+        //
+        // Not itself grabbable, for the same reason the Orbiter is not independently movable: it is
+        // chrome belonging to a panel, not a panel.
+        chromePanel =
+            Entity.createPanelEntity(
+                R.id.chrome_panel,
+                Transform(CHROME_LOCAL_POSE),
+                TransformParent(questionPanel!!),
+            )
+    }
+
+    /**
+     * Grab behavior, the Horizon OS counterpart of `SubspaceModifier.movable()`.
+     *
+     * [GrabbableType.PIVOT_Y] rather than [GrabbableType.FACE] because a trivia panel should stay
+     * upright: yaw to follow the player as it is dragged around them, but never pitch or roll into
+     * a tilted reading surface. `minHeight` / `maxHeight` keep a panel from being dragged into the
+     * floor or up out of view — Android XR's system move policy enforces comparable limits for
+     * free, whereas here nothing does unless it is asked for.
+     */
+    private fun grabbable() =
+        Grabbable(
+            enabled = true,
+            type = GrabbableType.PIVOT_Y,
+            minHeight = MIN_PANEL_HEIGHT_M,
+            maxHeight = MAX_PANEL_HEIGHT_M,
+        )
+
+    /**
+     * Resize behavior, the counterpart of `SubspaceModifier.resizable()`. Adding the component is
+     * enough — Interaction SDK generates the edge and corner handles itself.
+     *
+     * [ResizeMode.Relayout] re-renders the Compose content at the new resolution, which is the mode
+     * that suits text and buttons; [ResizeMode.Simple] would scale the existing bitmap and turn the
+     * question text soft. `preserveAspectRatio` is on because these panes were laid out for a fixed
+     * shape — a player who squashed the answer panel to a letterbox would push the buttons out of
+     * reach of their own panel.
+     *
+     * Bounds are generous in both directions: the lower bound is roughly "still readable at arm's
+     * length", the upper "still fits in a normal room".
+     */
+    private fun resizable() =
+        IsdkPanelResize(
+            enabled = true,
+            resizeMode = ResizeMode.Relayout,
+            minDimensions = Vector2(MIN_PANEL_WIDTH_M, MIN_PANEL_DIM_HEIGHT_M),
+            maxDimensions = Vector2(MAX_PANEL_WIDTH_M, MAX_PANEL_DIM_HEIGHT_M),
+            preserveAspectRatio = true,
+        )
+
+    /**
+     * Puts both panels back where they started.
+     *
+     * This is the price of grab and resize: once panels can be dragged anywhere in the room, they
+     * can also be dragged behind the player, through a wall, or out of reach — and unlike Android
+     * XR there is no system chrome offering a way back. So the reset is a real affordance, wired to
+     * both the chrome bar's button and [onRecenter].
+     *
+     * The chrome bar is not listed because it is parented to the question panel and follows it.
+     *
+     * Only pose is restored, not size. A panel the player resized stays resized, which seems like
+     * the right call — they asked for that, and they did not ask to lose it by pressing "bring
+     * panels to me".
+     */
+    fun resetPanelPoses() {
+        questionPanel?.setComponent(Transform(QUESTION_POSE))
+        answerPanel?.setComponent(Transform(ANSWER_POSE))
     }
 
     /**
@@ -245,7 +341,12 @@ class PuckTriviaImmersiveActivity : AppSystemActivity() {
                     if (route == TriviaRoute.Question) {
                         if (answerPanel == null) {
                             answerPanel =
-                                Entity.createPanelEntity(R.id.answer_panel, Transform(ANSWER_POSE))
+                                Entity.createPanelEntity(
+                                    R.id.answer_panel,
+                                    Transform(ANSWER_POSE),
+                                    grabbable(),
+                                    resizable(),
+                                )
                         }
                     } else {
                         answerPanel?.destroy()
@@ -259,7 +360,7 @@ class PuckTriviaImmersiveActivity : AppSystemActivity() {
      * Re-seats the panels in front of the player after a system recenter.
      *
      * There is no equivalent on the mobile flavor — Android XR's system chrome repositions windows
-     * for you. Here the panels are entities at fixed world poses, so a player who recenters (or who
+     * for you. Here the panels are entities at poses we own, so a player who recenters (or who
      * stands up and turns around) would otherwise be left facing an empty room with the game behind
      * them.
      */
@@ -267,9 +368,7 @@ class PuckTriviaImmersiveActivity : AppSystemActivity() {
         super.onRecenter(isUserInitiated)
         // Poses are authored relative to the reference space, which recentering redefines, so
         // re-applying the same constants is enough to bring everything back to arm's length.
-        spawnPersistentPanels()
-        answerPanel?.destroy()
-        answerPanel = null
+        resetPanelPoses()
     }
 
     /**
@@ -281,6 +380,12 @@ class PuckTriviaImmersiveActivity : AppSystemActivity() {
         sceneScope.cancel()
         answerPanel?.destroy()
         answerPanel = null
+        // Destroyed before its parent: TransformParent points the chrome bar at the question panel,
+        // and tearing the parent down first would leave a child holding a dead entity reference.
+        chromePanel?.destroy()
+        chromePanel = null
+        questionPanel?.destroy()
+        questionPanel = null
         triviaViewModelStore.clear()
         super.onSpatialShutdown()
     }
@@ -294,8 +399,23 @@ class PuckTriviaImmersiveActivity : AppSystemActivity() {
         const val CONTENT_WIDTH_M = 1.0f
         const val ANSWER_WIDTH_M = 0.8f
         const val CONTENT_HEIGHT_M = 0.75f
-        const val CHROME_WIDTH_M = 1.9f
+
+        // Matches the question panel's width, because the chrome bar is parented to it and would
+        // otherwise overhang. 700/112 dp == 1.0/0.16 m, the aspect ratio the quad needs.
+        const val CHROME_WIDTH_M = 1.0f
         const val CHROME_HEIGHT_M = 0.16f
+
+        // Grab limits: floor-to-standing-eye-level, so a panel cannot be dragged underfoot or out
+        // of sight overhead.
+        const val MIN_PANEL_HEIGHT_M = 0.6f
+        const val MAX_PANEL_HEIGHT_M = 2.2f
+
+        // Resize limits, in meters. Lower bound is about "still readable at arm's length", upper
+        // bound about "still fits in a normal room".
+        const val MIN_PANEL_WIDTH_M = 0.5f
+        const val MIN_PANEL_DIM_HEIGHT_M = 0.35f
+        const val MAX_PANEL_WIDTH_M = 2.5f
+        const val MAX_PANEL_DIM_HEIGHT_M = 1.9f
 
         /** Comfortable reading distance for text-heavy panels; nearer than this and eyes strain. */
         const val PANEL_DISTANCE_M = -1.5f
@@ -314,8 +434,16 @@ class PuckTriviaImmersiveActivity : AppSystemActivity() {
             Pose(Vector3(0.62f, PANEL_HEIGHT_M, PANEL_DISTANCE_M), Quaternion(0f, -14f, 0f))
 
         /**
-         * Above the pair, and slightly nearer so it does not clip the question panel's top edge.
+         * Local to the question panel, not to the world — the chrome bar is parented to it.
+         *
+         * Straight up by half the panel plus half the bar plus a small gap, and 2cm forward so the
+         * two coplanar quads do not z-fight. No rotation: it inherits the parent's yaw, which is
+         * the whole point of parenting it.
          */
-        val CHROME_POSE = Pose(Vector3(0f, 1.78f, PANEL_DISTANCE_M + 0.05f), Quaternion(0f, 0f, 0f))
+        val CHROME_LOCAL_POSE =
+            Pose(
+                Vector3(0f, CONTENT_HEIGHT_M / 2f + CHROME_HEIGHT_M / 2f + 0.04f, 0.02f),
+                Quaternion(0f, 0f, 0f),
+            )
     }
 }

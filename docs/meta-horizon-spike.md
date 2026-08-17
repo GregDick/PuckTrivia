@@ -51,8 +51,10 @@ give the quest build two launcher entries.
 | Layout | Compose subspace layout (`SpatialRow`) | one explicit `Pose` per entity |
 | Sizing | `SubspaceModifier.width(700.dp)` | `QuadShapeOptions` in **meters** + `DpDisplayOptions` for resolution |
 | Show / hide | recomposition | create / destroy the entity |
-| App chrome | `Orbiter` anchored to the panel group | just another panel, positioned above the pair |
-| Move / resize | `.movable()` / `.resizable()` | grab affordances via Interaction SDK — not wired here |
+| App chrome | `Orbiter` anchored to the panel group | a panel entity, `TransformParent`-ed to the question panel |
+| Move | `SubspaceModifier.movable()` | `Grabbable(type = PIVOT_Y)` component on the entity |
+| Resize | `SubspaceModifier.resizable()` | `IsdkPanelResize(resizeMode = Relayout)` component |
+| Getting a lost panel back | system chrome always can | app's problem — see `resetPanelPoses()` |
 | Background | passthrough, system-managed | `scene.enablePassthrough(true)`, ours to choose |
 
 The sharpest practical difference is **meters vs Dp**. On Android XR a panel is sized like a tablet
@@ -63,6 +65,73 @@ a pose you author, so sizing is a comfort decision rather than a layout one. `Qu
 The second difference is that **hiding a panel is an entity lifecycle event**. A Compose branch that
 renders nothing still leaves a blank rectangle floating in the room, so `PuckTriviaImmersiveActivity`
 spawns and destroys the answer panel as the game enters and leaves the Question route.
+
+## Grab and resize
+
+Interaction SDK closes most of the gap against `.movable()` / `.resizable()`. Both are components on
+the entity, added at spawn time:
+
+```kotlin
+Entity.createPanelEntity(
+    R.id.question_panel,
+    Transform(QUESTION_POSE),
+    Grabbable(enabled = true, type = GrabbableType.PIVOT_Y,
+              minHeight = 0.6f, maxHeight = 2.2f),
+    IsdkPanelResize(enabled = true, resizeMode = ResizeMode.Relayout,
+                    minDimensions = Vector2(0.5f, 0.35f),
+                    maxDimensions = Vector2(2.5f, 1.9f),
+                    preserveAspectRatio = true),
+)
+```
+
+Interaction SDK is already running — registering `VRFeature` enables it — so the `meta-spatial-sdk-isdk`
+artifact is only needed to put the components on the compile classpath. The edge and corner resize
+handles are generated automatically; there is nothing to draw.
+
+Choices worth stating:
+
+- **`GrabbableType.PIVOT_Y`, not `FACE`.** A trivia panel should yaw to follow the player as it's
+  dragged around them but stay upright — `FACE` would let it pitch into a tilted reading surface.
+- **`ResizeMode.Relayout`, not `Simple`.** `Simple` scales the existing bitmap, which softens text.
+  `Relayout` re-renders the Compose content at the new resolution.
+- **`preserveAspectRatio = true`.** These panes were laid out for a fixed shape; squashing the answer
+  panel to a letterbox would push its buttons out of reach of its own edge.
+- **`minHeight` / `maxHeight` on the grab.** Android XR's system move policy enforces comparable
+  limits for free. Here nothing does unless asked, so a panel could otherwise be dragged into the
+  floor.
+
+Two things followed from making panels movable that weren't obvious up front:
+
+**The chrome bar had to become a child.** It was a free-standing panel above the pair. Once the
+question panel could be dragged, the bar stayed behind in mid-air. It's now `TransformParent`-ed to
+the question panel with a local offset, which is what the `Orbiter` does on Android XR — chrome
+belongs to a panel rather than to the world. It's deliberately not grabbable itself, for the same
+reason the `Orbiter` isn't independently movable.
+
+**A reset affordance became mandatory.** An Android XR panel lives inside system chrome that can
+always retrieve it. A Spatial SDK entity dragged behind the player or through a wall has no such
+backstop. `resetPanelPoses()` is wired to both the chrome bar's "Bring panels to me" button and
+`onRecenter`. It restores pose but deliberately not size — the player asked for that resize and
+shouldn't lose it by pressing a button about position.
+
+This also fixed a latent bug: `onRecenter` used to call `spawnPersistentPanels()`, which created a
+second set of entities every recenter instead of moving the existing ones.
+
+### Two known risks here, both needing hardware
+
+1. **Grab may break the answer buttons.** The ISDK docs state that entities with a `Grabbable`
+   component stop receiving `onClick` unless they also have `IsdkPanelDimensions`. For panels,
+   `IsdkComponentCreationSystem` is documented to add that automatically — but if it doesn't, the
+   answer panel becomes unclickable and the game is unplayable. **Check this first on a device.**
+2. **`ComposeViewPanelRegistration` doesn't accept trailing components on 0.13.2.** The resize
+   tutorial shows `IsdkPanelResize(...)` passed as a trailing argument to the registration. That
+   constructor doesn't exist in the published 0.13.2 artifact (verified by disassembling the AAR) —
+   it must be newer. Components go on the entity at `createPanelEntity` instead, which is equivalent
+   for our purposes but means the panel can't carry them as part of its blueprint.
+
+Still missing versus Android XR: `Grabbable` has no scale/two-handed transform enabled, there's no
+`IsdkGrabConstraints` bounding where in the room panels may go, and resize doesn't persist across
+launches.
 
 ## What ported for free
 
@@ -111,8 +180,6 @@ Worth calling out because none have an Android XR counterpart:
 - **Spatial Editor / GLXF scene.** No `.metaspatial` composition, no 3D environment, no skybox.
   Panels are spawned at runtime from code and float over passthrough. Adding an environment means
   adding art assets and the `spatial { }` export block.
-- **Interaction SDK.** Panels are not grabbable, so there is no equivalent of the mobile flavor's
-  `.movable()` / `.resizable()`. `onRecenter` is the only repositioning affordance.
 - **Platform SDK.** No entitlement check, leaderboards, achievements, or IAP. High scores stay in
   local DataStore. An entitlement check is the first thing the Horizon Store will want.
 - **2D panel-app capabilities.** `<layout android:defaultWidth/defaultHeight>` and multi-panel via
@@ -128,7 +195,8 @@ Worth calling out because none have an Android XR counterpart:
 ## If this becomes real work
 
 1. Get a device or the Meta Spatial Simulator (bundled with the Meta Horizon Android Studio plugin)
-   and find out how wrong the panel poses are.
-2. Fix saved-state restoration on the immersive activity.
-3. Add a Platform SDK entitlement check — table stakes for the store.
-4. Decide whether panels should be grabbable (Interaction SDK) or stay fixed.
+   and **confirm the answer buttons still take clicks with `Grabbable` attached** — risk 1 above is
+   the only one that makes the app unplayable.
+2. Find out how wrong the panel poses, grab limits, and resize bounds are.
+3. Fix saved-state restoration on the immersive activity.
+4. Add a Platform SDK entitlement check — table stakes for the store.
