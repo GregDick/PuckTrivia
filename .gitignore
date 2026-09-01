@@ -31,3 +31,5 @@ eval/worktrees/
 
 # Journey test run artifacts
 **/journeys/.runs/
+.idea/deviceManager.xml
+.idea/project_id.xml
